@@ -1,0 +1,3021 @@
+<!DOCTYPE html>
+<html lang="zh-HK" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>羅SIR 高級伴奏學習 App</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Tone.js for Real-time Piano Synthesis -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Inter"', '"Noto Sans TC"', 'sans-serif'],
+                    },
+                    colors: {
+                        gold: {
+                            400: '#fbbf24',
+                            500: '#f59e0b',
+                            600: '#d97706',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        :root {
+            --app-font-size: 16px;
+        }
+        .dynamic-text {
+            font-size: var(--app-font-size);
+            line-height: 1.65;
+        }
+        /* Custom Scrollbars */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(156, 163, 175, 0.4);
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(156, 163, 175, 0.7);
+        }
+        /* Piano Key Styling */
+        .white-key {
+            transition: background-color 0.08s ease, transform 0.08s ease;
+        }
+        .white-key:active, .white-key.active-key {
+            background-color: #f59e0b !important;
+            transform: translateY(2px);
+        }
+        .black-key {
+            transition: background-color 0.08s ease, transform 0.08s ease;
+        }
+        .black-key:active, .black-key.active-key {
+            background-color: #d97706 !important;
+            transform: translateY(2px);
+        }
+        /* Active Measure Highlight */
+        .measure-box {
+            transition: all 0.2s ease;
+        }
+        .measure-box.playing {
+            stroke: #f59e0b;
+            stroke-width: 3px;
+            fill: rgba(245, 158, 11, 0.12);
+        }
+        .measure-box.selected {
+            stroke: #3b82f6;
+            stroke-width: 2.5px;
+        }
+        /* At ~1280 both sidebars + min-width staff/piano collide; keep sidebars overlay until 2xl */
+        @media (max-width: 1535px) {
+            #leftPanel:not(.hidden) {
+                position: absolute;
+                inset-block: 0;
+                left: 0;
+                z-index: 30;
+                box-shadow: 0 20px 40px rgba(0,0,0,0.25);
+            }
+            #rightPanel:not(.hidden) {
+                position: absolute;
+                inset-block: 0;
+                right: 0;
+                z-index: 30;
+                box-shadow: 0 20px 40px rgba(0,0,0,0.25);
+            }
+            main {
+                width: 100%;
+            }
+        }
+        @media (max-width: 1279px) {
+            #rightPanel:not(.force-open) {
+                /* default hidden handled in JS on load; this keeps overlay-only */
+            }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 h-screen flex flex-col overflow-hidden select-none transition-colors duration-200">
+
+    <!-- ================= TOP NAVIGATION BAR ================= -->
+    <header class="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-3 sm:px-5 py-2.5 flex items-center justify-between shrink-0 z-30 shadow-sm">
+        <!-- Left Controls & Brand -->
+        <div class="flex items-center space-x-2 sm:space-x-3">
+            <button id="toggleLeftBtn" onclick="togglePanel('left')" class="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-amber-500/10 hover:text-amber-500 transition-colors" title="摺疊/展開課程大綱">
+                <i class="fa-solid fa-bars-staggered text-lg"></i>
+            </button>
+            <div class="flex items-center space-x-2.5">
+                <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-slate-950 font-bold shadow-md">
+                    <i class="fa-solid fa-music text-lg"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-base sm:text-lg tracking-tight leading-tight flex items-center gap-2">
+                        <span>羅SIR 高級伴奏學習 App</span>
+                        <span class="hidden md:inline-block text-xs px-2 py-0.5 bg-amber-500/20 text-amber-500 dark:text-amber-400 rounded-full font-medium">Jazz & Blues Voicing</span>
+                    </h1>
+                    <p class="text-[11px] text-slate-500 dark:text-slate-400 hidden sm:block">流行和弦一鍵升級爵士、藍調伴奏互動工作坊</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Controls: Font Size, Theme, Right Panel Toggle -->
+        <div class="flex items-center space-x-1.5 sm:space-x-2.5">
+            <!-- Font Size Controls -->
+            <div class="flex items-center bg-slate-100 dark:bg-slate-800 rounded-xl p-1 border border-slate-200 dark:border-slate-700">
+                <button onclick="changeFontSize(-2)" class="px-2 py-1 text-xs font-bold rounded-lg hover:bg-white dark:hover:bg-slate-700 transition-colors" title="縮小字體">A-</button>
+                <span id="fontSizeDisplay" class="px-1.5 text-xs text-slate-500 dark:text-slate-400 hidden sm:inline">中</span>
+                <button onclick="changeFontSize(2)" class="px-2 py-1 text-xs font-bold rounded-lg hover:bg-white dark:hover:bg-slate-700 transition-colors" title="放大字體">A+</button>
+            </div>
+
+            <!-- Dark / Light Mode Toggle -->
+            <button id="themeToggleBtn" onclick="toggleTheme()" class="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-amber-500/10 hover:text-amber-500 border border-slate-200 dark:border-slate-700 transition-colors" title="切換白底/黑底模式">
+                <i id="themeIcon" class="fa-solid fa-sun text-amber-400"></i>
+            </button>
+
+            <!-- Toggle Right Chord Table Panel -->
+            <button id="toggleRightBtn" onclick="togglePanel('right')" class="px-3 py-2 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 hover:bg-amber-500/25 font-medium text-xs sm:text-sm flex items-center space-x-1.5 transition-colors border border-amber-500/30" title="摺疊/展開和弦字典">
+                <i class="fa-solid fa-table-cells"></i>
+                <span class="hidden sm:inline">Chord 表</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- ================= MAIN 3-COLUMN LAYOUT ================= -->
+    <div class="flex-1 flex overflow-hidden relative">
+
+        <!-- 1. LEFT PANEL: COURSE OUTLINE (Collapsible) -->
+        <aside id="leftPanel" class="w-72 sm:w-80 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col shrink-0 transition-all duration-300 z-20 absolute xl:static inset-y-0 left-0 shadow-xl xl:shadow-none">
+            <div class="p-3.5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                <div class="flex items-center space-x-2">
+                    <i class="fa-solid fa-book-open text-amber-500"></i>
+                    <h2 class="font-bold text-sm uppercase tracking-wider">重要內容大綱</h2>
+                </div>
+                <button onclick="togglePanel('left')" class="xl:hidden p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <!-- Topics List -->
+            <div id="topicListContainer" class="flex-1 overflow-y-auto p-3 space-y-2">
+                <!-- Populated by JS -->
+            </div>
+
+            <!-- Resources Footer -->
+            <div class="p-3 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-200 dark:border-slate-800 text-xs space-y-1.5">
+                <div class="font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
+                    <i class="fa-solid fa-graduation-cap text-amber-500"></i>
+                    <span>羅SIR 推薦權威參考核心：</span>
+                </div>
+                <p class="text-slate-500 dark:text-slate-400 leading-relaxed">
+                    整合自 <i>Mark Levine - The Jazz Piano Book</i>、<i>The Jazz Piano Site</i> 與 <i>PianoGroove</i> 實戰教材。
+                </p>
+            </div>
+        </aside>
+
+        <!-- 2. CENTER PANEL: 8-BAR STAFF + PIANO + REHARMONIZATION + LESSON -->
+        <main class="flex-1 flex flex-col overflow-y-auto bg-slate-50 dark:bg-slate-950 relative z-10">
+            
+            <!-- TOP INTERACTIVE MODULE: 8-BAR STAFF & PIANO -->
+            <section class="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 p-3 sm:p-4 shadow-sm">
+                
+                <!-- Control Toolbar -->
+                <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                    <div class="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                        <!-- Play 8 Bars Button -->
+                        <button id="playSeqBtn" onclick="togglePlaySequence()" class="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs sm:text-sm flex items-center space-x-2 shadow-sm transition-all">
+                            <i id="playSeqIcon" class="fa-solid fa-play"></i>
+                            <span id="playSeqText">播放 8 小節伴奏</span>
+                        </button>
+
+                        <!-- Stop Button -->
+                        <button onclick="stopSequence()" class="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-rose-500/20 hover:text-rose-500 text-slate-600 dark:text-slate-300 text-xs sm:text-sm transition-colors" title="停止播放">
+                            <i class="fa-solid fa-stop"></i>
+                        </button>
+
+                        <!-- Quick Upgrade Toggle: Basic vs Advanced -->
+                        <div class="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
+                            <button id="modeBasicBtn" onclick="switchProgressionMode('basic')" class="px-2.5 py-1 rounded-lg text-xs font-semibold transition-all">
+                                普通 Chord
+                            </button>
+                            <button id="modeAdvBtn" onclick="switchProgressionMode('advanced')" class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-500 text-slate-950 shadow transition-all">
+                                ✨ 高級 Jazz/Blues
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Right Toolbar: Exercise Selector & Manual Input -->
+                    <div class="flex flex-wrap items-center gap-2">
+                        <!-- Undo / Redo History Controls -->
+                        <div class="flex items-center bg-slate-100 dark:bg-slate-800 rounded-xl p-0.5 border border-slate-200 dark:border-slate-700">
+                            <button id="undoBtn" onclick="undoSequence()" disabled class="px-2 py-1 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 disabled:opacity-35 disabled:pointer-events-none transition-all" title="復原上一步和弦修改 (Undo)">
+                                <i class="fa-solid fa-rotate-left"></i>
+                                <span class="hidden sm:inline ml-1">復原</span>
+                            </button>
+                            <button id="redoBtn" onclick="redoSequence()" disabled class="px-2 py-1 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 disabled:opacity-35 disabled:pointer-events-none transition-all" title="重做和弦修改 (Redo)">
+                                <i class="fa-solid fa-rotate-right"></i>
+                            </button>
+                        </div>
+
+                        <select id="exerciseSelect" onchange="loadPresetExercise(this.value)" class="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1.5 text-xs sm:text-sm font-medium focus:outline-none focus:border-amber-500">
+                            <option value="ex1">練習 1：經典 1-6-2-5 升級 (Pop → Jazz)</option>
+                            <option value="ex_rootless">練習 2：Bill Evans 無根音 A/B 型 (2-5-1 Rootless)</option>
+                            <option value="ex2">練習 3：二五一與三音替代 (Tritone Sub)</option>
+                            <option value="ex3">練習 4：12-Bar 精華 8小節 Jazz Blues</option>
+                            <option value="ex4">練習 5：Emotional Neo-Soul 四度伴奏</option>
+                            <option value="ex5">練習 6：小調 2-5-1 (Minor b9/b13 Voicing)</option>
+                        </select>
+
+                        <button onclick="togglePopSandboxModal()" class="px-3 py-1.5 rounded-xl bg-purple-500/15 text-purple-600 dark:text-purple-400 hover:bg-purple-500/25 border border-purple-500/30 text-xs sm:text-sm font-semibold flex items-center gap-1.5 transition-colors">
+                            <i class="fa-solid fa-compact-disc"></i>
+                            <span>流行曲改編庫</span>
+                        </button>
+
+                        <button onclick="toggleManualInputModal()" class="px-3 py-1.5 rounded-xl bg-blue-500/15 text-blue-600 dark:text-blue-400 hover:bg-blue-500/25 border border-blue-500/30 text-xs sm:text-sm font-semibold flex items-center gap-1.5 transition-colors">
+                            <i class="fa-solid fa-keyboard"></i>
+                            <span>手動輸入 8 小節</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- NEW: Hands & Fingering Assistance Bar (Fingering, Voice Leading, Hand Solo) -->
+                <div class="flex flex-wrap items-center justify-between gap-2 mb-3 px-3 py-2 rounded-xl bg-amber-500/5 dark:bg-slate-800/80 border border-amber-500/20 text-xs">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <span class="font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                            <i class="fa-solid fa-hand-sparkles"></i>
+                            <span>指法與導音輔助：</span>
+                        </span>
+                        <button id="toggleFingeringBtn" onclick="toggleFingering()" class="px-2.5 py-1 rounded-lg bg-amber-500 text-slate-950 font-bold flex items-center gap-1.5 shadow-sm transition-all">
+                            <i class="fa-solid fa-fingerprint"></i>
+                            <span>指法標記 (1-5)：開</span>
+                        </button>
+                        <button id="toggleVoiceLeadingBtn" onclick="toggleVoiceLeading()" class="px-2.5 py-1 rounded-lg bg-emerald-500 text-slate-950 font-bold flex items-center gap-1.5 shadow-sm transition-all">
+                            <i class="fa-solid fa-route"></i>
+                            <span>1對1 導音軌跡：開</span>
+                        </button>
+                        <span id="samplerStatusBadge" class="px-2 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 font-medium text-[11px]">
+                            🎼 平台鋼琴真實取樣待命
+                        </span>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <span class="text-slate-500 dark:text-slate-400 font-medium">分手練習：</span>
+                        <div class="flex items-center bg-slate-200/70 dark:bg-slate-900 p-0.5 rounded-lg border border-slate-300 dark:border-slate-700">
+                            <button id="handMode-both" onclick="setHandPracticeMode('both')" class="px-2 py-0.5 rounded-md bg-amber-500 text-slate-950 font-bold transition-all">雙手合奏</button>
+                            <button id="handMode-lh" onclick="setHandPracticeMode('lh')" class="px-2 py-0.5 rounded-md text-slate-600 dark:text-slate-300 font-medium transition-all">只練左手 (藍)</button>
+                            <button id="handMode-rh" onclick="setHandPracticeMode('rh')" class="px-2 py-0.5 rounded-md text-slate-600 dark:text-slate-300 font-medium transition-all">只練右手 (金)</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- NEW: POP REHARMONIZATION SANDBOX DRAWER (Cantopop / Mandopop Level 1 -> Level 3) -->
+                <div id="popSandboxDrawer" class="hidden mb-3 p-4 rounded-2xl bg-gradient-to-r from-purple-500/10 via-amber-500/5 to-blue-500/10 border border-purple-500/30 space-y-3">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <div class="flex items-center gap-2">
+                            <span class="px-2 py-0.5 rounded-md bg-purple-500 text-white text-xs font-bold">實戰改編沙盒</span>
+                            <h3 class="text-xs sm:text-sm font-bold text-slate-800 dark:text-white">精選廣東歌 / 華語流行曲經典 8 小節（Level 1 → Level 3 即時聽覺升級）</h3>
+                        </div>
+                        <button onclick="togglePopSandboxModal()" class="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                            <i class="fa-solid fa-xmark"></i> 收起
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 items-center">
+                        <!-- Song Selector -->
+                        <div class="lg:col-span-5 space-y-1">
+                            <label class="text-[11px] font-semibold text-slate-500 dark:text-slate-400">選擇經典流行曲副歌框架：</label>
+                            <select id="popSongSelect" onchange="selectPopSong(this.value)" class="w-full bg-white dark:bg-slate-900 border border-purple-500/40 rounded-xl px-3 py-2 text-xs sm:text-sm font-bold focus:outline-none focus:border-purple-500">
+                                <option value="cantopop1">🏆 廣東歌王道副歌 (4-5-3-6-2-5-1) — 追 / 約定 / 富士山下</option>
+                                <option value="mandopop1">🌙 華語抒情卡農進行 (1-5-6-3-4-1-2-5) — 安靜 / 突然好想你</option>
+                                <option value="citypop">🌆 都會感傷小調進行 (4-5-6-6-4-5-3-6) — 喜帖街 / 刻在我心底的名字</option>
+                                <option value="popanthem">✨ 時代金曲萬用進行 (1-5-6-4 循環升級) — 海闊天空 / 告白氣球</option>
+                            </select>
+                        </div>
+
+                        <!-- Jazz Level 1 -> 3 Slider & Buttons -->
+                        <div class="lg:col-span-7 bg-white/80 dark:bg-slate-900/90 p-3 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2">
+                            <div class="flex items-center justify-between text-xs">
+                                <span class="font-bold text-purple-600 dark:text-purple-400">
+                                    <i class="fa-solid fa-wand-magic-sparkles mr-1"></i>改造等級滑桿 (Reharm Level)：
+                                </span>
+                                <span id="popLevelBadge" class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-600 dark:text-amber-300 font-bold">
+                                    Level 3：大師重配 (Tritone Sub + Passing Chords)
+                                </span>
+                            </div>
+
+                            <input id="popLevelSlider" type="range" min="1" max="3" step="1" value="3" oninput="setPopReharmLevel(parseInt(this.value, 10))" class="w-full accent-purple-500 cursor-pointer" />
+
+                            <div class="grid grid-cols-3 gap-2 pt-0.5">
+                                <button onclick="setPopReharmLevel(1)" id="popLvlBtn-1" class="py-1.5 px-2 rounded-lg text-[11px] font-bold border transition-all text-center">
+                                    Lv.1 原版流行三和弦
+                                </button>
+                                <button onclick="setPopReharmLevel(2)" id="popLvlBtn-2" class="py-1.5 px-2 rounded-lg text-[11px] font-bold border transition-all text-center">
+                                    Lv.2 都會爵士 7/9 和弦
+                                </button>
+                                <button onclick="setPopReharmLevel(3)" id="popLvlBtn-3" class="py-1.5 px-2 rounded-lg text-[11px] font-bold border transition-all text-center">
+                                    Lv.3 三音替代 + 經過和弦
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="popSongNoteBox" class="text-xs text-slate-600 dark:text-slate-300 bg-white/60 dark:bg-slate-900/60 px-3 py-2 rounded-xl border border-slate-200/70 dark:border-slate-800">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+
+                <!-- NEW: Groove Style, Instrument Sound & 12-Key Transpose Bar -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-2.5 mb-3 p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800">
+                    <!-- 1. Left-Hand Accompaniment Groove & BPM -->
+                    <div class="flex items-center justify-between gap-2 bg-white dark:bg-slate-900 px-3 py-2 rounded-xl border border-slate-200/80 dark:border-slate-700/80">
+                        <div class="flex items-center gap-2 min-w-0 flex-1">
+                            <i class="fa-solid fa-drum text-amber-500 text-sm shrink-0"></i>
+                            <div class="flex-1 min-w-0">
+                                <div class="text-[10px] text-slate-400 font-semibold leading-none mb-1">伴奏節奏型 (Groove)</div>
+                                <select id="grooveSelect" onchange="changeGrooveStyle(this.value)" class="w-full bg-transparent text-xs font-bold text-slate-800 dark:text-slate-100 focus:outline-none truncate">
+                                    <option value="bossa">🌴 Bossa Nova (森巴切分律動)</option>
+                                    <option value="swing">🎷 Swing Walking Bass (搖擺行走低音)</option>
+                                    <option value="blues">🥃 Slow Blues 12/8 (藍調三連音律動)</option>
+                                    <option value="neosoul">✨ Neo-Soul Arpeggio (靈魂分解琶音)</option>
+                                    <option value="block">🎹 Block Chords (基礎全音符齊奏)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-1.5 pl-2 border-l border-slate-200 dark:border-slate-700 shrink-0">
+                            <span class="text-[10px] font-mono text-slate-400">BPM</span>
+                            <input id="bpmSlider" type="range" min="65" max="150" value="96" oninput="changeBpm(this.value)" class="w-14 accent-amber-500 cursor-pointer" />
+                            <span id="bpmValueLabel" class="text-xs font-mono font-bold text-amber-500 w-7 text-right">96</span>
+                        </div>
+                    </div>
+
+                    <!-- 2. Instrument Sound Selector -->
+                    <div class="flex items-center justify-between gap-2 bg-white dark:bg-slate-900 px-3 py-2 rounded-xl border border-slate-200/80 dark:border-slate-700/80">
+                        <div class="flex items-center gap-2 flex-1">
+                            <i class="fa-solid fa-sliders text-blue-500 text-sm shrink-0"></i>
+                            <div class="flex-1">
+                                <div class="text-[10px] text-slate-400 font-semibold leading-none mb-1">發音樂器音色 (Instrument)</div>
+                                <select id="instrumentSelect" onchange="changeInstrument(this.value)" class="w-full bg-transparent text-xs font-bold text-slate-800 dark:text-slate-100 focus:outline-none">
+                                    <option value="grand" selected>🎼 古典平台大鋼琴 (Acoustic Grand)</option>
+                                    <option value="epiano">🎹 溫暖電鋼琴 (Warm Rhodes EP)</option>
+                                    <option value="organ">🎛️ 爵士藍調風琴 (Jazz Hammond Organ)</option>
+                                    <option value="vibes">🔔 靈魂顫音琴 (Jazz Vibraphone)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <button onclick="selectAndPlayMeasure(selectedMeasureIndex)" class="px-2 py-1 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-500 text-[11px] font-bold shrink-0 transition-colors" title="試聽音色">
+                            試聽
+                        </button>
+                    </div>
+
+                    <!-- 3. 12-Key Transposer -->
+                    <div class="flex items-center justify-between gap-2 bg-white dark:bg-slate-900 px-3 py-2 rounded-xl border border-slate-200/80 dark:border-slate-700/80">
+                        <div class="flex items-center gap-2">
+                            <i class="fa-solid fa-arrows-up-down text-emerald-500 text-sm shrink-0"></i>
+                            <div>
+                                <div class="text-[10px] text-slate-400 font-semibold leading-none mb-1">轉調練習 (Transpose)</div>
+                                <div class="flex items-center gap-1">
+                                    <button onclick="shiftTranspose(-1)" class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 hover:bg-amber-500 hover:text-slate-950 text-xs font-bold transition-colors" title="降半音">-1</button>
+                                    <select id="transposeSelect" onchange="setTranspose(parseInt(this.value, 10))" class="bg-slate-100 dark:bg-slate-800 rounded px-2 py-0.5 text-xs font-bold text-emerald-600 dark:text-emerald-400 focus:outline-none">
+                                        <option value="-5">G 調 (-5)</option>
+                                        <option value="-4">Ab 調 (-4)</option>
+                                        <option value="-3">A 調 (-3)</option>
+                                        <option value="-2">Bb 調 (-2)</option>
+                                        <option value="-1">B 調 (-1)</option>
+                                        <option value="0" selected>C 原調 (0)</option>
+                                        <option value="1">Db 調 (+1)</option>
+                                        <option value="2">D 調 (+2)</option>
+                                        <option value="3">Eb 調 (+3)</option>
+                                        <option value="4">E 調 (+4)</option>
+                                        <option value="5">F 調 (+5)</option>
+                                        <option value="6">F# 調 (+6)</option>
+                                    </select>
+                                    <button onclick="shiftTranspose(1)" class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 hover:bg-amber-500 hover:text-slate-950 text-xs font-bold transition-colors" title="升半音">+1</button>
+                                </div>
+                            </div>
+                        </div>
+                        <button onclick="setTranspose(0)" class="text-[11px] text-slate-400 hover:text-amber-500 font-medium shrink-0">
+                            重設 C調
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Manual 8-Bar Input Drawer (Collapsible) -->
+                <div id="manualInputDrawer" class="hidden mb-3 p-3.5 rounded-2xl bg-slate-100 dark:bg-slate-800/90 border border-blue-500/30 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-blue-500"></span>
+                            <h3 class="text-xs sm:text-sm font-bold">自訂 8 小節和弦進行（輸入普遍和弦，羅SIR 自動幫你轉為高級伴奏！）</h3>
+                        </div>
+                        <button onclick="toggleManualInputModal()" class="text-xs text-slate-400 hover:text-slate-200">
+                            <i class="fa-solid fa-xmark"></i> 關閉
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-4 sm:grid-cols-8 gap-2" id="manualInputsGrid">
+                        <!-- 8 inputs generated by JS -->
+                    </div>
+
+                    <div class="flex flex-wrap items-center justify-between gap-2 pt-1">
+                        <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+                            <div class="text-[11px] text-slate-500 dark:text-slate-400">
+                                支援全 12 調與延伸記號，如：<code class="px-1 py-0.5 bg-slate-200 dark:bg-slate-700 rounded">Cmaj7</code>, <code class="px-1 py-0.5 bg-slate-200 dark:bg-slate-700 rounded">Cm7</code>, <code class="px-1 py-0.5 bg-slate-200 dark:bg-slate-700 rounded">Abmaj7</code>, <code class="px-1 py-0.5 bg-slate-200 dark:bg-slate-700 rounded">Fm9</code>, <code class="px-1 py-0.5 bg-slate-200 dark:bg-slate-700 rounded">G7</code>, <code class="px-1 py-0.5 bg-slate-200 dark:bg-slate-700 rounded">Bm7b5</code>
+                            </div>
+                            <label class="inline-flex items-center gap-1.5 text-xs font-bold text-amber-600 dark:text-amber-400 cursor-pointer select-none">
+                                <input type="checkbox" id="autoTritoneSubCheck" class="accent-amber-500 rounded cursor-pointer" />
+                                <span>終止式屬七和弦 (V7) 自動套用三音替代 (Tritone Sub)</span>
+                            </label>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button onclick="applyManualChords('basic')" class="px-3 py-1.5 rounded-xl bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-xs font-semibold transition-colors">
+                                套用原版和弦
+                            </button>
+                            <button onclick="applyManualChords('jazz')" class="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 text-xs font-bold shadow transition-all">
+                                <i class="fa-solid fa-wand-magic-sparkles mr-1"></i>一鍵轉為高級 Jazz/Blues 和弦
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 8-MEASURE INTERACTIVE GRAND STAFF (SVG) -->
+                <div class="w-full overflow-x-auto bg-amber-50/40 dark:bg-slate-950/90 border border-slate-200 dark:border-slate-800 rounded-2xl p-2 mb-3">
+                    <div class="min-w-[680px]">
+                        <svg id="staffSvg" viewBox="0 0 880 185" class="w-full h-auto select-none">
+                            <!-- Rendered dynamically by JS -->
+                        </svg>
+                    </div>
+                </div>
+
+                <!-- Selected Bar Info & Voicing Breakdown Bar -->
+                <div class="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800/70 mb-3 text-xs">
+                    <div class="flex items-center flex-wrap gap-2">
+                        <span class="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-600 dark:text-amber-400 font-bold" id="activeBarBadge">第 1 小節</span>
+                        <span class="font-bold text-sm sm:text-base text-slate-800 dark:text-white" id="activeChordName">Cmaj9</span>
+                        <span id="previewStatusPill" class="hidden px-2 py-0.5 rounded bg-purple-500/20 text-purple-600 dark:text-purple-300 font-bold text-[11px]">
+                            🎧 試聽預覽中（尚未覆蓋小節）
+                        </span>
+                        <button id="applyPreviewBtn" onclick="commitPreviewedChordToBar()" class="hidden px-2.5 py-0.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-[11px] shadow-sm transition-all">
+                            套用至目前小節
+                        </button>
+                        <span class="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-semibold text-[11px]" id="activeGrooveBadge">🌴 Bossa Nova 律動</span>
+                        <span class="text-slate-500 dark:text-slate-400 hidden sm:inline" id="activeChordDesc">Rooted Jazz Voicing</span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <span class="text-slate-500 dark:text-slate-400">組成音與指法 (藍=左手 / 金=右手)：</span>
+                        <div id="activeChordNotesBadges" class="flex items-center flex-wrap gap-1">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- NEW: Smooth Voice Leading Guide Banner -->
+                <div id="voiceLeadingBanner" class="mb-3 px-3.5 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs flex flex-wrap items-center justify-between gap-2">
+                    <!-- Populated dynamically by JS -->
+                </div>
+
+                <!-- INTERACTIVE PIANO KEYBOARD (A2 - C6) -->
+                <div class="w-full overflow-x-auto pb-1">
+                    <div id="pianoContainer" class="relative h-28 sm:h-32 min-w-[620px] max-w-4xl mx-auto flex bg-slate-900 p-1.5 rounded-2xl shadow-inner border border-slate-800">
+                        <!-- Generated by JS -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- BOTTOM CONTENT MODULE: LESSON DEFINITIONS, EXAMPLES & WORKSHOPS -->
+            <section class="p-4 sm:p-6 max-w-4xl mx-auto w-full space-y-6 dynamic-text">
+                <!-- Lesson Content Container -->
+                <div id="lessonContentArea" class="space-y-6">
+                    <!-- Populated dynamically when user selects a topic -->
+                </div>
+            </section>
+        </main>
+
+        <!-- 3. RIGHT PANEL: CHORD TABLE & VOICING DICTIONARY (Collapsible) -->
+        <aside id="rightPanel" class="w-80 sm:w-96 bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 flex flex-col shrink-0 transition-all duration-300 z-20 absolute 2xl:static inset-y-0 right-0 shadow-xl 2xl:shadow-none">
+            <div class="p-3.5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                <div class="flex items-center space-x-2">
+                    <i class="fa-solid fa-table-list text-amber-500"></i>
+                    <h2 class="font-bold text-sm uppercase tracking-wider">普通 → 高級 Chord 轉換表</h2>
+                </div>
+                <button onclick="togglePanel('right')" class=" p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <!-- Filter Tabs for Chord Dictionary -->
+            <div class="p-2.5 border-b border-slate-200 dark:border-slate-800 flex items-center gap-1.5 overflow-x-auto">
+                <button onclick="filterChordTable('all')" id="filter-all" class="chord-filter-btn px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500 text-slate-950">全部</button>
+                <button onclick="filterChordTable('rootless')" id="filter-rootless" class="chord-filter-btn px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-800">無根音 A/B</button>
+                <button onclick="filterChordTable('major')" id="filter-major" class="chord-filter-btn px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-800">大調 (Maj)</button>
+                <button onclick="filterChordTable('minor')" id="filter-minor" class="chord-filter-btn px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-800">小調 (Min)</button>
+                <button onclick="filterChordTable('dominant')" id="filter-dominant" class="chord-filter-btn px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-800">屬七/替代</button>
+                <button onclick="filterChordTable('blues')" id="filter-blues" class="chord-filter-btn px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-800">Blues 專用</button>
+            </div>
+
+            <div class="px-3 py-2 bg-amber-500/10 border-b border-amber-500/20 text-[11px] text-amber-600 dark:text-amber-300 flex items-center justify-between">
+                <span>💡 點擊卡片純試聽預覽；按「套用」才寫入選中小節</span>
+            </div>
+
+            <!-- Chord Cards List -->
+            <div id="chordTableContainer" class="flex-1 overflow-y-auto p-3 space-y-2.5">
+                <!-- Populated by JS -->
+            </div>
+        </aside>
+
+    </div>
+
+    <!-- ================= APPLICATION JAVASCRIPT ================= -->
+    <script>
+        /**************************************************************
+         * 1. CHORD & VOICING DATABASE (SINGLE SOURCE OF TRUTH: LH + RH)
+         *    All notes strictly within A2..C6. `notes` is derived from [...lh, ...rh].
+         **************************************************************/
+        const RAW_CHORD_DEFINITIONS = {
+            // --- BASIC TRIADS & 7THS ---
+            "C": {
+                name: "C",
+                category: "basic",
+                formula: "1 - 5 | 1 - 3 - 5",
+                lh: ["C3", "G3"],
+                rh: ["C4", "E4", "G4"],
+                lhFingers: ["5", "1"],
+                rhFingers: ["1", "3", "5"],
+                desc: "基礎大三和弦（左手根五音 5-1，右手原位三和弦 1-3-5）",
+                upgradeTo: "Cmaj9"
+            },
+            "Am": {
+                name: "Am",
+                category: "basic",
+                formula: "1 - 5 | 1 - b3 - 5",
+                lh: ["A2", "E3"],
+                rh: ["A3", "C4", "E4"],
+                lhFingers: ["5", "1"],
+                rhFingers: ["1", "2", "5"],
+                desc: "基礎小三和弦（左手 A2-E3 根五音，右手小三和弦）",
+                upgradeTo: "Am9"
+            },
+            "Dm": {
+                name: "Dm",
+                category: "basic",
+                formula: "1 - 5 | 1 - b3 - 5",
+                lh: ["D3", "A3"],
+                rh: ["D4", "F4", "A4"],
+                lhFingers: ["5", "1"],
+                rhFingers: ["1", "2", "5"],
+                desc: "基礎二級小三和弦",
+                upgradeTo: "Dm9"
+            },
+            "Em": {
+                name: "Em",
+                category: "basic",
+                formula: "1 - 5 | 1 - b3 - 5",
+                lh: ["E3", "B3"],
+                rh: ["E4", "G4", "B4"],
+                lhFingers: ["5", "1"],
+                rhFingers: ["1", "2", "5"],
+                desc: "基礎三級小三和弦",
+                upgradeTo: "Em11"
+            },
+            "F": {
+                name: "F",
+                category: "basic",
+                formula: "1 - 5 | 1 - 3 - 5",
+                lh: ["F3", "C4"],
+                rh: ["F4", "A4", "C5"],
+                lhFingers: ["5", "1"],
+                rhFingers: ["1", "3", "5"],
+                desc: "基礎四級大三和弦",
+                upgradeTo: "Fmaj9"
+            },
+            "G": {
+                name: "G",
+                category: "basic",
+                formula: "1 - 5 | 1 - 3 - 5",
+                lh: ["G3", "D4"],
+                rh: ["G4", "B4", "D5"],
+                lhFingers: ["5", "1"],
+                rhFingers: ["1", "3", "5"],
+                desc: "基礎五級大三和弦",
+                upgradeTo: "G13"
+            },
+            "G7": {
+                name: "G7",
+                category: "basic",
+                formula: "1 - 3 | 5 - b7 - 1",
+                lh: ["G3", "B3"],
+                rh: ["D4", "F4", "G4"],
+                lhFingers: ["4", "2"],
+                rhFingers: ["1", "3", "4"],
+                desc: "傳統屬七和弦（左手三度 4-2，右手 1-3-4）",
+                upgradeTo: "G13"
+            },
+            "C7": {
+                name: "C7",
+                category: "basic",
+                formula: "1 - 5 - b7 | 3 - 5 - 1",
+                lh: ["C3", "G3", "A#3"],
+                rh: ["E4", "G4", "C5"],
+                lhFingers: ["5", "2", "1"],
+                rhFingers: ["1", "2", "5"],
+                desc: "基礎一級屬七和弦 (Blues I7，左手 Shell 5-2-1)",
+                upgradeTo: "C13"
+            },
+            "F7": {
+                name: "F7",
+                category: "basic",
+                formula: "1 - 5 | b7 - 3 - 5",
+                lh: ["F3", "C4"],
+                rh: ["D#4", "A4", "C5"],
+                lhFingers: ["5", "1"],
+                rhFingers: ["1", "4", "5"],
+                desc: "基礎四級屬七和弦 (Blues IV7)",
+                upgradeTo: "F9"
+            },
+            "A7": {
+                name: "A7",
+                category: "basic",
+                formula: "1 - 5 - b7 | 3 - 5 - 1",
+                lh: ["A2", "E3", "G3"],
+                rh: ["C#4", "E4", "A4"],
+                lhFingers: ["5", "2", "1"],
+                rhFingers: ["1", "2", "5"],
+                desc: "基礎次屬七和弦 (VI7，左手 A2-E3-G3)",
+                upgradeTo: "A7b13"
+            },
+            "E7": {
+                name: "E7",
+                category: "basic",
+                formula: "1 - 5 | b7 - 3 - 5",
+                lh: ["E3", "B3"],
+                rh: ["D4", "G#4", "B4"],
+                lhFingers: ["5", "1"],
+                rhFingers: ["1", "3", "5"],
+                desc: "基礎三級屬七和弦 (III7)",
+                upgradeTo: "E7#9b13"
+            },
+            "Bm7b5": {
+                name: "Bm7b5",
+                category: "basic",
+                formula: "1 - b5 - b7 | b3 - b5 - 1",
+                lh: ["B2", "F3", "A3"],
+                rh: ["D4", "F4", "B4"],
+                lhFingers: ["5", "2", "1"],
+                rhFingers: ["1", "2", "5"],
+                desc: "半減七和弦 (小調二級 iiø7，左手 B2-F3-A3 5-2-1)",
+                upgradeTo: "Bm11b5"
+            },
+
+            // --- AUTHENTIC BILL EVANS ROOTLESS A/B VOICINGS (FOR TOPIC 2 & COMBO COMPING) ---
+            "Dm9_RL": {
+                name: "Dm9 (A型無根)",
+                basicEquivalent: "Dm",
+                category: "rootless",
+                formula: "b3 - 5 | b7 - 9 (3-5-7-9 無根音)",
+                lh: ["F3", "A3"],
+                rh: ["C4", "E4"],
+                lhFingers: ["3", "1"],
+                rhFingers: ["1", "3"],
+                desc: "Bill Evans A-Type 無根音配置：省略根音 D，由 b3(F3)-5(A3)-b7(C4)-9(E4) 構成"
+            },
+            "G13_RL": {
+                name: "G13 (B型無根)",
+                basicEquivalent: "G7",
+                category: "rootless",
+                formula: "b7 - 9 | 3 - 13 (7-9-3-13 無根音)",
+                lh: ["F3", "A3"],
+                rh: ["B3", "E4"],
+                lhFingers: ["3", "1"],
+                rhFingers: ["1", "4"],
+                desc: "Bill Evans B-Type 無根音配置：從 Dm9 過來時 F3、A3、E4 完全不動，僅 C4 降半音至 B3！"
+            },
+            "Cmaj9_RL": {
+                name: "Cmaj9 (A型無根)",
+                basicEquivalent: "C",
+                category: "rootless",
+                formula: "3 - 5 | 7 - 9 (3-5-7-9 無根音)",
+                lh: ["E3", "G3"],
+                rh: ["B3", "D4"],
+                lhFingers: ["3", "1"],
+                rhFingers: ["1", "3"],
+                desc: "Bill Evans A-Type 大九無根音：從 G13(B型) 過來時 B3 保留不動，其餘聲部平滑下行！"
+            },
+            "Fmaj9_RL": {
+                name: "Fmaj9 (B型無根)",
+                basicEquivalent: "F",
+                category: "rootless",
+                formula: "7 - 9 | 3 - 5 (E-G-A-C 無根音)",
+                lh: ["E3", "G3"],
+                rh: ["A3", "C4"],
+                lhFingers: ["3", "1"],
+                rhFingers: ["1", "3"],
+                desc: "四級無根音緊密配置：與 Cmaj9 共享 E3、G3，手指微調即可完成和弦轉換"
+            },
+
+            // --- ADVANCED ROOTED JAZZ & BLUES VOICINGS (SOLO / POP-JAZZ COMPING) ---
+            "Cmaj9": {
+                name: "Cmaj9",
+                basicEquivalent: "C",
+                category: "major",
+                formula: "1 - 3 | 5 - 7 - 9 - 5",
+                lh: ["C3", "E3"],
+                rh: ["G3", "B3", "D4", "G4"],
+                lhFingers: ["4", "2"],
+                rhFingers: ["1", "2", "3", "5"],
+                desc: "大九和弦（左手 C3-E3 4-2 指；右手 G3-B3-D4-G4 1-2-3-5 指，溫暖都會爵士感）"
+            },
+            "Cmaj9#11": {
+                name: "Cmaj9(#11)",
+                basicEquivalent: "C",
+                category: "major",
+                formula: "1 - 5 - 7 | 9 - 3 - #11 - 7",
+                lh: ["C3", "G3", "B3"],
+                rh: ["D4", "E4", "F#4", "B4"],
+                lhFingers: ["5", "2", "1"],
+                rhFingers: ["1", "2", "3", "5"],
+                desc: "Lydian 現代爵士和弦（左手 5-2-1 根五七；右手 D-E-F#-B 含 #11 漂浮色彩）"
+            },
+            "Fmaj9": {
+                name: "Fmaj9",
+                basicEquivalent: "F",
+                category: "major",
+                formula: "1 - 3 | 5 - 7 - 9 - 3",
+                lh: ["F3", "A3"],
+                rh: ["C4", "E4", "G4", "A4"],
+                lhFingers: ["4", "2"],
+                rhFingers: ["1", "2", "4", "5"],
+                desc: "四級大九和弦（左手 F3-A3 4-2 指；右手 C4-E4-G4-A4 1-2-4-5 指）"
+            },
+            "Am9": {
+                name: "Am9",
+                basicEquivalent: "Am",
+                category: "minor",
+                formula: "1 - 5 - b7 | b3 - 5 - b7 - 9",
+                lh: ["A2", "E3", "G3"],
+                rh: ["C4", "E4", "G4", "B4"],
+                lhFingers: ["5", "2", "1"],
+                rhFingers: ["1", "2", "3", "5"],
+                desc: "Kenny Barron 風格小九和弦（左手 A2-E3-G3 5-2-1；右手 Cmaj7 1-2-3-5 指）"
+            },
+            "Dm9": {
+                name: "Dm9",
+                basicEquivalent: "Dm",
+                category: "minor",
+                formula: "1 - b3 | 5 - b7 - 9 - 11",
+                lh: ["D3", "F3"],
+                rh: ["A3", "C4", "E4", "G4"],
+                lhFingers: ["3", "1"],
+                rhFingers: ["1", "2", "4", "5"],
+                desc: "有根音二級 Dm9(11) 配置（左手 D3-F3 3-1 指；右手 A3-C4-E4-G4 1-2-4-5 指）"
+            },
+            "Em9": {
+                name: "Em9",
+                basicEquivalent: "Em",
+                category: "minor",
+                formula: "1 - 5 - b7 | b3 - 5 - b7 - 9",
+                lh: ["E3", "B3", "D4"],
+                rh: ["G4", "B4", "D5", "F#5"],
+                lhFingers: ["5", "2", "1"],
+                rhFingers: ["1", "2", "3", "5"],
+                desc: "三級小九和弦（左手 E3-B3-D4 5-2-1 指；右手 Gmaj7 1-2-3-5 指）"
+            },
+            "Em11": {
+                name: "Em11",
+                basicEquivalent: "Em",
+                category: "minor",
+                formula: "1 - 11 | b7 - b3 - 11 - 5",
+                lh: ["E3", "A3"],
+                rh: ["D4", "G4", "A4", "B4"],
+                lhFingers: ["4", "1"],
+                rhFingers: ["1", "3", "4", "5"],
+                desc: "So What 四度疊置和弦（左手 E3-A3 4-1 指；右手 D4-G4-A4-B4 1-3-4-5 指）"
+            },
+            "Bm11b5": {
+                name: "Bm11(b5)",
+                basicEquivalent: "Bm7b5",
+                category: "minor",
+                formula: "1 - b5 - b7 | b3 - 11 - b5 - b7",
+                lh: ["B2", "F3", "A3"],
+                rh: ["D4", "E4", "F4", "A4"],
+                lhFingers: ["5", "2", "1"],
+                rhFingers: ["1", "2", "3", "5"],
+                desc: "高級小調二級半減和弦（左手 B2-F3-A3 5-2-1；右手緊密簇音 D4-E4-F4-A4 1-2-3-5）"
+            },
+            "G13": {
+                name: "G13",
+                basicEquivalent: "G7",
+                category: "dominant",
+                formula: "1 - b7 | 9 - 3 - 5 - 13",
+                lh: ["G3", "F4"],
+                rh: ["A4", "B4", "D5", "E5"],
+                lhFingers: ["5", "1"],
+                rhFingers: ["1", "2", "4", "5"],
+                desc: "有根音屬十三和弦（左手 G3-F4 5-1 指；右手 A4-B4-D5-E5 1-2-4-5 指）"
+            },
+            "G7alt": {
+                name: "G7(#9b13)",
+                basicEquivalent: "G7",
+                category: "dominant",
+                formula: "1 - b7 | 3 - #9 - b13",
+                lh: ["G3", "F4"],
+                rh: ["B3", "A#4", "D#5"],
+                lhFingers: ["5", "1"],
+                rhFingers: ["1", "3", "5"],
+                desc: "Altered 變化屬七和弦（左手 G3-F4 5-1 指；右手 B3-A#4-D#5 含 #9 與 b13 強烈張力）"
+            },
+            "Db9#11": {
+                name: "Db9(#11)",
+                basicEquivalent: "G7",
+                category: "dominant",
+                formula: "1 - 3 - b7 | 9 - #11 - 13",
+                lh: ["C#3", "F3", "B3"],
+                rh: ["D#4", "G4", "A#4"],
+                lhFingers: ["5", "3", "1"],
+                rhFingers: ["1", "2", "4"],
+                desc: "三音替代和弦 (Tritone Sub)：左手 Db-F-Cb(B) 5-3-1 指，右手 Eb 大三和弦 1-2-4 指！"
+            },
+            "A7b13": {
+                name: "A7(b9b13)",
+                basicEquivalent: "A7",
+                category: "dominant",
+                formula: "1 - b7 | b9 - 3 - 5 - b13",
+                lh: ["A2", "G3"],
+                rh: ["A#3", "C#4", "E4", "F4"],
+                lhFingers: ["5", "1"],
+                rhFingers: ["1", "2", "3", "4"],
+                desc: "六級次屬變化和弦（左手 A2-G3 5-1 指；右手 A#3-C#4-E4-F4 1-2-3-4 指導向 Dm9）"
+            },
+            "E7#9b13": {
+                name: "E7(#9b13)",
+                basicEquivalent: "E7",
+                category: "dominant",
+                formula: "1 - 3 - b7 | #9 - b13 - 1",
+                lh: ["E3", "G#3", "D4"],
+                rh: ["G4", "C5", "E5"],
+                lhFingers: ["5", "3", "1"],
+                rhFingers: ["1", "3", "5"],
+                desc: "小調五級變化屬七和弦（左手 E3-G#3-D4 5-3-1 指；右手 G4-C5-E5 1-3-5 指）"
+            },
+            "C13": {
+                name: "C13",
+                basicEquivalent: "C7",
+                category: "blues",
+                formula: "1 - 3 - b7 | 9 - 5 - 13",
+                lh: ["C3", "E3", "A#3"],
+                rh: ["D4", "G4", "A4"],
+                lhFingers: ["5", "3", "1"],
+                rhFingers: ["1", "4", "5"],
+                desc: "Blues 一級高級伴奏和弦（左手 Shell 5-3-1 指；右手 D4-G4-A4 1-4-5 指）"
+            },
+            "F9": {
+                name: "F9",
+                basicEquivalent: "F7",
+                category: "blues",
+                formula: "1 - 3 - b7 | 9 - 5 - 13",
+                lh: ["F3", "A3", "D#4"],
+                rh: ["G4", "C5", "D5"],
+                lhFingers: ["5", "3", "1"],
+                rhFingers: ["1", "4", "5"],
+                desc: "Blues 四級九/十三和弦（左手 F3-A3-Eb4 5-3-1 指；右手 G4-C5-D5 1-4-5 指）"
+            },
+            "C7#9": {
+                name: "C7(#9)",
+                basicEquivalent: "C7",
+                category: "blues",
+                formula: "1 - 3 | b7 - #9 - 5",
+                lh: ["C3", "E3"],
+                rh: ["A#3", "D#4", "G4"],
+                lhFingers: ["4", "2"],
+                rhFingers: ["2", "3", "5"],
+                desc: "藍調 #9 伴奏和弦（左手 C3-E3 4-2 指；右手 Bb3-D#4-G4 2-3-5 指）"
+            },
+            "Gm9_C13": {
+                name: "C13(sus→3)",
+                basicEquivalent: "C7",
+                category: "dominant",
+                formula: "1 - 5 - b7 | 9 - 3 - 13",
+                lh: ["C3", "G3", "A#3"],
+                rh: ["D4", "E4", "A4"],
+                lhFingers: ["5", "2", "1"],
+                rhFingers: ["1", "2", "5"],
+                desc: "進入四級 Fmaj9 前的爵士次屬經過和弦（左手 5-2-1 指；右手 D4-E4-A4 1-2-5 指）"
+            }
+        };
+
+        // Build CHORD_DATABASE ensuring `notes` is ALWAYS derived from `[...lh, ...rh]` (Single Source of Truth)
+        const CHORD_DATABASE = {};
+        function registerChordInDatabase(key, def) {
+            const cleanLh = (def.lh || []).slice();
+            const cleanRh = (def.rh || []).slice();
+            CHORD_DATABASE[key] = {
+                ...def,
+                lh: cleanLh,
+                rh: cleanRh,
+                notes: [...cleanLh, ...cleanRh]
+            };
+            return CHORD_DATABASE[key];
+        }
+        Object.entries(RAW_CHORD_DEFINITIONS).forEach(([k, v]) => registerChordInDatabase(k, v));
+
+        /**************************************************************
+         * 2. PRESET 8-BAR EXERCISES (INCLUDING AUTHENTIC ROOTLESS A/B)
+         **************************************************************/
+        const PRESET_EXERCISES = {
+            ex1: {
+                title: "練習 1：經典 1-6-2-5 升級 (Pop → Jazz)",
+                basic:    ["C", "Am", "Dm", "G7", "Em", "Am", "Dm", "G7"],
+                advanced: ["Cmaj9", "Am9", "Dm9", "G13", "Em9", "A7b13", "Dm9", "G7alt"]
+            },
+            ex_rootless: {
+                title: "練習 2：Bill Evans 無根音 A/B 型 (2-5-1 Rootless)",
+                basic:    ["Dm", "G7", "C", "F", "Dm", "G7", "C", "C"],
+                advanced: ["Dm9_RL", "G13_RL", "Cmaj9_RL", "Fmaj9_RL", "Dm9_RL", "G13_RL", "Cmaj9_RL", "Cmaj9_RL"]
+            },
+            ex2: {
+                title: "練習 3：二五一與三音替代 (Tritone Sub)",
+                basic:    ["Dm", "G7", "C", "C", "Dm", "G7", "C", "A7"],
+                advanced: ["Dm9", "Db9#11", "Cmaj9", "Cmaj9#11", "Dm9", "Db9#11", "Cmaj9", "A7b13"]
+            },
+            ex3: {
+                title: "練習 4：精華 8小節 Jazz Blues 伴奏",
+                basic:    ["C7", "F7", "C7", "A7", "Dm", "G7", "C7", "G7"],
+                advanced: ["C13", "F9", "C7#9", "A7b13", "Dm9", "G13", "C13", "Db9#11"]
+            },
+            ex4: {
+                title: "練習 5：Emotional Neo-Soul 四度伴奏",
+                basic:    ["Em", "Am", "Dm", "G7", "F", "Em", "Dm", "C"],
+                advanced: ["Em11", "Am9", "Dm9", "Db9#11", "Fmaj9", "Em11", "Dm9", "Cmaj9#11"]
+            },
+            ex5: {
+                title: "練習 6：小調 2-5-1 (Minor b9/b13 Voicing)",
+                basic:    ["Bm7b5", "E7", "Am", "Am", "Dm", "G7", "C", "E7"],
+                advanced: ["Bm11b5", "E7#9b13", "Am9", "Am9", "Dm9", "G13", "Cmaj9", "E7#9b13"]
+            }
+        };
+
+        /**************************************************************
+         * 2B. POP REHARMONIZATION SANDBOX (CANTOPOP / MANDOPOP LV.1 - LV.3)
+         **************************************************************/
+        const POP_SANDBOX_SONGS = {
+            cantopop1: {
+                title: "廣東歌王道副歌 (4-5-3-6-2-5-1)",
+                songs: "代表作：《追》、《約定》、《富士山下》、《喜歡你》",
+                levels: {
+                    1: ["F", "G", "Em", "Am", "Dm", "G7", "C", "C7"],
+                    2: ["Fmaj9", "G13", "Em9", "Am9", "Dm9", "G13", "Cmaj9", "C13"],
+                    3: ["Fmaj9", "G7alt", "Em11", "A7b13", "Dm9_RL", "Db9#11", "Cmaj9", "C7#9"]
+                },
+                notes: {
+                    1: "【Level 1 原版流行伴奏】全部使用基礎三和弦與屬七和弦，低音根音大幅跳動，聽起來直接但缺乏層次。",
+                    2: "【Level 2 都會爵士 7/9 擴充】將 F、Em、Am、Dm 全面升級為 9 和弦，G7 升級為 G13，保留流行感同時增添溫暖R&B色彩。",
+                    3: "【Level 3 大師重配 (Tritone Sub + Passing Chords)】第4小節 Am 改為次屬 A7(b9b13) 推向 Dm9；第6小節 G7 改用三音替代 Db9(#11) 創造 D→Db→C 半音下行低音；最後以 C7(#9) 藍調張力帶入下一段！"
+                }
+            },
+            mandopop1: {
+                title: "華語抒情卡農進行 (1-5-6-3-4-1-2-5)",
+                songs: "代表作：《安靜》、《突然好想你》、《童話》、《晴天》",
+                levels: {
+                    1: ["C", "G", "Am", "Em", "F", "C", "Dm", "G7"],
+                    2: ["Cmaj9", "G13", "Am9", "Em9", "Fmaj9", "Cmaj9", "Dm9", "G13"],
+                    3: ["Cmaj9", "E7#9b13", "Am9", "C13", "Fmaj9", "Em11", "Dm9_RL", "Db9#11"]
+                },
+                notes: {
+                    1: "【Level 1 原版流行伴奏】最經典的 1-5-6-3-4-1-2-5 八小節，右手通常只彈分解三和弦。",
+                    2: "【Level 2 都會爵士 7/9 擴充】加入 Maj9 與 m9，讓和弦之間產生共同保留音（Common Tones），手指幾乎不用大幅移動。",
+                    3: "【Level 3 大師重配】第2小節用 E7(#9b13) 經過和弦強勢導向 Am9；第4小節用 C13 導向四級 Fmaj9；第8小節以 Db9(#11) 三音替代回到 C！"
+                }
+            },
+            citypop: {
+                title: "都會感傷小調進行 (4-5-6-6-4-5-3-6)",
+                songs: "代表作：《喜帖街》、《刻在我心底的名字》、《Last Dance》",
+                levels: {
+                    1: ["F", "G7", "Am", "Am", "F", "G7", "Em", "Am"],
+                    2: ["Fmaj9", "G13", "Am9", "Am9", "Fmaj9", "G13", "Em11", "Am9"],
+                    3: ["Fmaj9", "E7#9b13", "Am9", "A7b13", "Fmaj9", "Db9#11", "Em11", "E7#9b13"]
+                },
+                notes: {
+                    1: "【Level 1 原版流行伴奏】以小調六級 Am 為核心的感傷進行。",
+                    2: "【Level 2 都會爵士 7/9 擴充】使用 Em11 (So What 四度和弦) 與 Am9，營造濃厚 City-Pop 氛圍。",
+                    3: "【Level 3 大師重配】大量運用小調五級 E7(#9b13) 與次屬 A7(b9b13) 作為經過和弦，張力十足！"
+                }
+            },
+            popanthem: {
+                title: "時代金曲萬用進行 (1-5-6-4 變奏升級)",
+                songs: "代表作：《海闊天空》、《告白氣球》、《平凡之路》、《Let It Be》",
+                levels: {
+                    1: ["C", "G", "Am", "F", "C", "G", "F", "C"],
+                    2: ["Cmaj9", "G13", "Am9", "Fmaj9", "Cmaj9", "G13", "Fmaj9", "Cmaj9"],
+                    3: ["Cmaj9", "Bm11b5", "E7#9b13", "Am9", "Gm9_C13", "Fmaj9", "Db9#11", "Cmaj9#11"]
+                },
+                notes: {
+                    1: "【Level 1 原版流行伴奏】全球流行歌最常見的 1-5-6-4 循環，彈久了容易覺得單調。",
+                    2: "【Level 2 都會爵士 7/9 擴充】全面升級為九和弦，適合輕柔 Bossa Nova 或 Neo-Soul 伴奏。",
+                    3: "【Level 3 大師重配】將前四小節改為 Cmaj9 → Bm11(b5) → E7(#9b13) → Am9（插入小調2-5-1），結尾用 Db9(#11) 解決至華麗的 Cmaj9(#11)！"
+                }
+            }
+        };
+
+        /**************************************************************
+         * 3. COURSE CURRICULUM & TOPIC LESSONS (ALIGNED WITH CHORD DB)
+         **************************************************************/
+        const TOPICS = [
+            {
+                id: "topic-1",
+                badge: "單元 01",
+                title: "三和弦升級：7th 與張力音 (9, 11, 13)",
+                subtitle: "告別單調流行伴奏的第一步（有根音雙手配置）",
+                exerciseId: "ex1",
+                definition: "在流行歌或獨奏伴奏中，我們常在左手保留根音與導音（1-3 或 1-5-7），並在右手疊加「七度音（7th）」與「延伸張力音（Tensions: 9th, 11th, 13th）」，讓和聲產生立體的色彩感。",
+                keyRules: [
+                    "大調和弦（I級、IV級）：升級為 Maj9 或 Maj9(#11)，例如 C 轉為 Cmaj9（左手 C3-E3，右手 G3-B3-D4-G4）。",
+                    "小調和弦（ii級、iii級、vi級）：升級為 m9，例如 Am 轉為 Am9（左手 A2-E3-G3，右手 C4-E4-G4-B4 即 Cmaj7）。",
+                    "屬七和弦（V級）：加入 9 與 13 度音成為 G13（左手 G3-F4，右手 A4-B4-D5-E5），或用 G7(#9b13) 製造張力。"
+                ],
+                comparisons: [
+                    { label: "大調和弦升級", from: "C", to: "Cmaj9", note: "加入大七度(B3)與九度(D4)，瞬間擁有都會爵士感" },
+                    { label: "六級小調升級", from: "Am", to: "Am9", note: "左手 A2-E3-G3 配右手 Cmaj7 (C4-E4-G4-B4)，構成豐滿 Am9" },
+                    { label: "五級屬七升級", from: "G7", to: "G13", note: "左手 G3-F4 撐起框架，右手疊加 9音(A4) 與 13音(E5)" }
+                ]
+            },
+            {
+                id: "topic-2",
+                badge: "單元 02",
+                title: "無根音配置：Bill Evans Rootless A/B Voicings",
+                subtitle: "省略根音、僅動一顆半音的極致聲部導進",
+                exerciseId: "ex_rootless",
+                definition: "在樂團合奏或現代爵士中，低音根音交給貝斯手（或左手低音點綴），雙手中間音區專門彈奏省略根音的「Rootless Voicing」。透過交替使用 A-Type (3-5-7-9) 與 B-Type (7-9-3-13)，換和弦時幾乎不用移動手型！",
+                keyRules: [
+                    "A-Type 無根音配置（由 3 音起疊 3-5-7-9）：Dm9(A型無根) 彈奏 F3 - A3 - C4 - E4。",
+                    "B-Type 無根音配置（由 7 音起疊 7-9-3-13）：G13(B型無根) 彈奏 F3 - A3 - B3 - E4。",
+                    "黃金聲部導進：從 Dm9(A型) 接 G13(B型) 時，F3、A3、E4 三顆音完全保留不動，只需將 C4 降半音至 B3！接著到 Cmaj9(A型: E3-G3-B3-D4) 時 B3 繼續保留不動！"
+                ],
+                comparisons: [
+                    { label: "ii級 A-Type 無根音", from: "Dm", to: "Dm9_RL", note: "省略根音 D，彈奏 F3-A3-C4-E4 (b3-5-b7-9)" },
+                    { label: "V級 B-Type 無根音", from: "G7", to: "G13_RL", note: "F3、A3、E4 保留不動，僅 C4 降半音到 B3 (b7-9-3-13)" },
+                    { label: "I級 A-Type 無根音", from: "C", to: "Cmaj9_RL", note: "B3 保留不動，F3→E3、A3→G3、E4→D4 平滑解決" }
+                ]
+            },
+            {
+                id: "topic-3",
+                badge: "單元 03",
+                title: "三音替代法：Tritone Substitution",
+                subtitle: "將 2-5-1 轉為半音階下行高級低音線",
+                exerciseId: "ex2",
+                definition: "三音替代（Tritone Sub）是爵士重配和弦（Reharmonization）最強大的武器。因為 G7 的 3音與7音（B 與 F）跟相距增四度（三全音）的 Db7 的 7音與3音（Cb/B 與 F）完全相同，因此任何 V7 都可以替換為 bII7！",
+                keyRules: [
+                    "基本公式：將 Dm9 → G13 → Cmaj9 改為 Dm9 → Db9(#11) → Cmaj9。",
+                    "低音線條升級：原本跳進的 D → G → C，變成極具魅力的半音平滑下行 D3 → Db3(C#3) → C3。",
+                    "右手 Upper Structure 秘訣：彈 Db9(#11) 時，左手彈 Db-F-B，右手直接彈「Eb 大三和弦 (D#4-G4-A#4)」。"
+                ],
+                comparisons: [
+                    { label: "五級三音替代", from: "G7", to: "Db9#11", note: "共享 B 與 F 導音，低音呈現 D3 → Db3 → C3 半音下行" },
+                    { label: "終止式 Lydian 升級", from: "C", to: "Cmaj9#11", note: "Db9(#11) 半音解決至含 F#4 的 Cmaj9(#11)" },
+                    { label: "五級變化屬七", from: "G7", to: "G7alt", note: "左手 G3-F4，右手 B3-A#4-D#5 帶出強烈 Altered 張力" }
+                ]
+            },
+            {
+                id: "topic-4",
+                badge: "單元 04",
+                title: "現代四度疊置：Quartal & Neo-Soul",
+                subtitle: "So What Voicing 與都會靈魂樂伴奏",
+                exerciseId: "ex4",
+                definition: "傳統和弦皆以「三度」疊置（1-3-5-7），聽久了容易顯得制式。自 Miles Davis《Kind of Blue》中 Bill Evans 彈出著名的『So What Voicing』後，四度疊置與二度簇音成為現代 Jazz 與 Neo-Soul 的標誌聲響。",
+                keyRules: [
+                    "So What / Neo-Soul Em11 結構：左手彈四度 E3-A3，右手彈 D4-G4-A4-B4，打破三度疊置框架。",
+                    "四級柔美九和弦：Fmaj9 左手 F3-A3，右手 C4-E4-G4-A4，頂部 G4-A4 二度摩擦極具靈魂樂色彩。",
+                    "大調 Lydian 色彩：在大調和弦加入 #11（Cmaj9#11），產生空靈通透的電影配樂感。"
+                ],
+                comparisons: [
+                    { label: "So What 四度和弦", from: "Em", to: "Em11", note: "左手四度 E3-A3 配右手 D4-G4-A4-B4" },
+                    { label: "四級柔美九和弦", from: "F", to: "Fmaj9", note: "Neo-Soul 最常用的溫暖四級鋪底和弦" },
+                    { label: "Lydian 現代一級", from: "C", to: "Cmaj9#11", note: "含 F#4 音，結尾時帶來意猶未盡的空間感" }
+                ]
+            },
+            {
+                id: "topic-5",
+                badge: "單元 05",
+                title: "藍調高級伴奏：Jazz-Blues & Hendrix Chord",
+                subtitle: "13和弦、#9 藍調張力與 12/8 Slow Blues 律動",
+                exerciseId: "ex3",
+                definition: "藍調（Blues）伴奏的精髓在於「大調 3 音與藍調 b3/#9 音的碰撞」以及「I7 - IV7 - V7 全屬七化」。在 Jazz-Blues 中，左手彈奏 1-3-b7 Shell Voicing，右手疊加 9、13 或 #9，並可在第 4 小節插入 A7(b9b13) 導向二級 Dm9。",
+                keyRules: [
+                    "一級與四級升級：將普通 C7 改為 C13 (左手 C3-E3-Bb3，右手 D4-G4-A4)，接 F9 時導音 E-Bb 平滑半音下行至 Eb-A。",
+                    "經典 #9 藍調和弦：C7(#9) 左手含大三度 E3，右手彈 Bb3-D#4(#9)-G4，充滿地道藍調火花。",
+                    "小調藍調二五一：使用 Bm11(b5) → E7(#9b13) → Am9，A2 與 B2 低音在擴展鍵盤上完整呈現。"
+                ],
+                comparisons: [
+                    { label: "Blues 一級升級", from: "C7", to: "C13", note: "左手 Shell (C3-E3-Bb3) 配右手 D4-G4-A4" },
+                    { label: "Blues 四級升級", from: "F7", to: "F9", note: "左手 F3-A3-Eb4 配右手 G4-C5-D5" },
+                    { label: "藍調靈魂 #9 和弦", from: "C7", to: "C7#9", note: "大三度(E3)與升九度(D#4)摩擦出極致藍調味道" }
+                ]
+            },
+            {
+                id: "topic-6",
+                badge: "單元 06",
+                title: "小調 2-5-1：Minor iiø–V–i 與 b9/b13",
+                subtitle: "Bm11(b5) → E7(#9b13) → Am9 小調終止式",
+                exerciseId: "ex5",
+                definition: "小調二五一（Minor 2-5-1）以半減七（iiø7 / m7b5）接變化屬七（V7alt / #9b13），再解決到小九（im9）。這是爵士小調標準曲最核心的終止語彙，低音與導音張力比大調 2-5-1 更尖銳。",
+                keyRules: [
+                    "二級半減升級：Bm7b5 升級為 Bm11(b5)，左手 B2-F3-A3，右手加入 11 度自然音形成緊密簇音。",
+                    "五級變化屬七：E7 升級為 E7(#9b13)，大三度與 #9／b13 並存，強力推向 Am9。",
+                    "一級小九解決：Am9 左手 A2-E3-G3，右手 Cmaj7 疊置，收束小調色彩同時保留爵士厚度。"
+                ],
+                comparisons: [
+                    { label: "小調二級升級", from: "Bm7b5", to: "Bm11b5", note: "半減七加入 11 度，形成小調 iiø 現代聲響" },
+                    { label: "小調五級升級", from: "E7", to: "E7#9b13", note: "#9 與 b13 製造強烈導向 Am 的張力" },
+                    { label: "小調一級升級", from: "Am", to: "Am9", note: "左手 A2-E3-G3 配右手 Cmaj7，豐滿 im9 解決" }
+                ]
+            }
+        ];
+
+        /**************************************************************
+         * 4. STATE, UNDO/REDO HISTORY, WHOLE-CHORD TRANSPOSITION & BIJECTIVE VOICE LEADING
+         **************************************************************/
+        let currentExerciseKey = "ex1";
+        let currentMode = "advanced"; // 'basic' or 'advanced'
+        let currentSequence = [...PRESET_EXERCISES.ex1.advanced];
+        let customBasicSequence = [...PRESET_EXERCISES.ex1.basic];
+        let customAdvancedSequence = [...PRESET_EXERCISES.ex1.advanced];
+        let isCustomMode = false;
+
+        // Undo / Redo History Stack for 8-Bar Sequence
+        let sequenceHistory = [];
+        let sequenceRedoStack = [];
+
+        function pushSequenceHistory() {
+            sequenceHistory.push({
+                seq: [...currentSequence],
+                basicSeq: [...customBasicSequence],
+                advSeq: [...customAdvancedSequence],
+                mode: currentMode,
+                isCustom: isCustomMode
+            });
+            if (sequenceHistory.length > 30) sequenceHistory.shift();
+            sequenceRedoStack = [];
+            updateUndoRedoButtons();
+        }
+
+        function updateUndoRedoButtons() {
+            const uBtn = document.getElementById("undoBtn");
+            const rBtn = document.getElementById("redoBtn");
+            if (uBtn) uBtn.disabled = sequenceHistory.length === 0;
+            if (rBtn) rBtn.disabled = sequenceRedoStack.length === 0;
+        }
+
+        function undoSequence() {
+            if (sequenceHistory.length === 0) return;
+            stopSequence();
+            sequenceRedoStack.push({
+                seq: [...currentSequence],
+                basicSeq: [...customBasicSequence],
+                advSeq: [...customAdvancedSequence],
+                mode: currentMode,
+                isCustom: isCustomMode
+            });
+            const prev = sequenceHistory.pop();
+            currentSequence = [...prev.seq];
+            customBasicSequence = [...prev.basicSeq];
+            customAdvancedSequence = [...prev.advSeq];
+            currentMode = prev.mode;
+            isCustomMode = prev.isCustom;
+            previewedChordKey = null;
+            updateUndoRedoButtons();
+            refreshSelectedMeasure();
+            saveStateToStorage();
+        }
+
+        function redoSequence() {
+            if (sequenceRedoStack.length === 0) return;
+            stopSequence();
+            sequenceHistory.push({
+                seq: [...currentSequence],
+                basicSeq: [...customBasicSequence],
+                advSeq: [...customAdvancedSequence],
+                mode: currentMode,
+                isCustom: isCustomMode
+            });
+            const next = sequenceRedoStack.pop();
+            currentSequence = [...next.seq];
+            customBasicSequence = [...next.basicSeq];
+            customAdvancedSequence = [...next.advSeq];
+            currentMode = next.mode;
+            isCustomMode = next.isCustom;
+            previewedChordKey = null;
+            updateUndoRedoButtons();
+            refreshSelectedMeasure();
+            saveStateToStorage();
+        }
+
+        let selectedMeasureIndex = 0;
+        let previewedChordKey = null; // Non-destructive preview chord key
+        let isPlayingSequence = false;
+        let activeTimeouts = [];
+        let currentTopicId = "topic-1";
+        let currentFontSize = 16;
+        let audioUnlocked = false; // P0: no Tone.start / autoplay until first user gesture
+
+        let currentGroove = "bossa"; // 'bossa', 'swing', 'blues', 'neosoul', 'block'
+        let currentBpm = 96;
+        let currentInstrument = "grand";
+        let transposeSemitones = 0;
+
+        function escapeHtml(str) {
+            return String(str == null ? "" : str)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#39;");
+        }
+
+        // Transpose pitch tokens like F3, Eb4, A#3 inside Chinese blurbs / formulas
+        function transposePitchTokensInText(text, semitones = transposeSemitones) {
+            if (!text || !semitones) return text;
+            return String(text).replace(/([A-G])([#b♯♭]?)(-?\d)/g, (full, letter, acc, oct) => {
+                const note = letter + acc.replace("♯", "#").replace("♭", "b") + oct;
+                try {
+                    return midiToNote(noteToMidi(note) + semitones);
+                } catch (e) {
+                    return full;
+                }
+            });
+        }
+
+        let showFingering = true;
+        let showVoiceLeading = true;
+        let handPracticeMode = "both";
+
+        let currentPopSongKey = "cantopop1";
+        let currentPopLevel = 3;
+
+        const PITCH_CLASSES_SHARP = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+        const PITCH_CLASSES_DISPLAY = ["C", "Db", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"];
+
+        const GROOVE_LABELS = {
+            bossa: "🌴 Bossa Nova 森巴切分 (4/4)",
+            swing: "🎷 Swing Walking Bass 搖擺低音 (4/4)",
+            blues: "🥃 Slow Blues 12/8 三連音律動 (12/8)",
+            neosoul: "✨ Neo-Soul 靈魂琶音 (4/4)",
+            block: "🎹 Block Chords 齊奏 (4/4)"
+        };
+
+        // Normalize flats to sharps for keyboard/MIDI matching
+        function normalizeNoteName(note) {
+            if (!note) return "C4";
+            const trimmed = note.trim().replace("♯", "#").replace("♭", "b");
+            const match = trimmed.match(/^([A-G])([b#]?)(-?\d+)$/);
+            if (!match) return trimmed;
+            const flatMap = { "Db": "C#", "Eb": "D#", "Gb": "F#", "Ab": "G#", "Bb": "A#", "Cb": "B", "Fb": "E" };
+            const head = match[1] + match[2];
+            let oct = parseInt(match[3], 10);
+            if (head === "Cb") oct -= 1;
+            const mapped = flatMap[head] || head;
+            return `${mapped}${oct}`;
+        }
+
+        function noteToMidi(noteStr) {
+            const norm = normalizeNoteName(noteStr);
+            const match = norm.match(/^([A-G]#?)(-?\d+)$/);
+            if (!match) return 60;
+            const pc = PITCH_CLASSES_SHARP.indexOf(match[1]);
+            const oct = parseInt(match[2], 10);
+            return (oct + 1) * 12 + pc;
+        }
+
+        // Pure MIDI-to-Note conversion WITHOUT per-note clamping (preserves intervals!)
+        function midiToNote(midi) {
+            const pc = ((midi % 12) + 12) % 12;
+            const oct = Math.floor(midi / 12) - 1;
+            return `${PITCH_CLASSES_SHARP[pc]}${oct}`;
+        }
+
+        function transposeChordName(chordName, semitones = transposeSemitones) {
+            if (semitones === 0) return chordName;
+            return chordName.replace(/^([A-G][b#]?)/, (root) => {
+                const flatToSharp = { Db: "C#", Eb: "D#", Gb: "F#", Ab: "G#", Bb: "A#" };
+                const normRoot = flatToSharp[root] || root;
+                const idx = PITCH_CLASSES_SHARP.indexOf(normRoot);
+                if (idx === -1) return root;
+                const newIdx = ((idx + semitones) % 12 + 12) % 12;
+                return PITCH_CLASSES_DISPLAY[newIdx];
+            });
+        }
+
+        // Whole-Chord Transposition: shifts the entire chord together, and if any note leaves A2(45)..C6(84), shifts the entire chord by +-12 octaves
+        function getTransposedChord(chordKey) {
+            const base = CHORD_DATABASE[chordKey] || CHORD_DATABASE["Cmaj9"];
+            const rawLhMidis = base.lh.map(n => noteToMidi(n) + transposeSemitones);
+            const rawRhMidis = base.rh.map(n => noteToMidi(n) + transposeSemitones);
+            const allMidis = [...rawLhMidis, ...rawRhMidis];
+
+            let octaveAdjust = 0;
+            const minMidi = Math.min(...allMidis);
+            const maxMidi = Math.max(...allMidis);
+
+            // Keep whole voicing within keyboard range A2 (45) to C6 (84) without distorting intervals
+            if (minMidi < 45) {
+                octaveAdjust = 12;
+            } else if (maxMidi > 84) {
+                octaveAdjust = -12;
+            }
+
+            const finalLh = rawLhMidis.map(m => midiToNote(m + octaveAdjust));
+            const finalRh = rawRhMidis.map(m => midiToNote(m + octaveAdjust));
+
+            return {
+                ...base,
+                displayName: transposeChordName(base.name, transposeSemitones),
+                displayBasic: base.basicEquivalent
+                    ? transposeChordName(base.basicEquivalent, transposeSemitones)
+                    : transposeChordName(base.basic || base.name, transposeSemitones),
+                desc: transposePitchTokensInText(base.desc || "", transposeSemitones),
+                formula: transposePitchTokensInText(base.formula || "", transposeSemitones),
+                lh: finalLh,
+                rh: finalRh,
+                notes: [...finalLh, ...finalRh]
+            };
+        }
+
+        // Ergonomic Piano Fingering Engine for LH (5->1) & RH (1->5)
+        function computeErgonomicHandFingers(notesArr, hand, explicitFingers) {
+            if (explicitFingers && explicitFingers.length === notesArr.length) {
+                return explicitFingers;
+            }
+            const midis = notesArr.map(n => noteToMidi(n));
+            const len = midis.length;
+            if (len === 0) return [];
+            if (len === 1) return [hand === "L" ? "3" : "2"];
+
+            if (hand === "L") {
+                if (len === 2) {
+                    const span = midis[1] - midis[0];
+                    if (span <= 3) return ["3", "1"];
+                    if (span <= 5) return ["4", "1"];
+                    if (span <= 7) return ["5", "2"];
+                    return ["5", "1"];
+                }
+                if (len === 3) {
+                    const bottomGap = midis[1] - midis[0];
+                    const topGap = midis[2] - midis[1];
+                    if (bottomGap >= 6 && topGap <= 4) return ["5", "2", "1"];
+                    if (bottomGap <= 4 && topGap >= 5) return (midis[2] - midis[0] <= 9) ? ["4", "2", "1"] : ["5", "3", "1"];
+                    return ["5", "3", "1"];
+                }
+                return ["5", "3", "2", "1"].slice(0, len);
+            } else {
+                if (len === 2) {
+                    const span = midis[1] - midis[0];
+                    if (span <= 2) return ["1", "2"];
+                    if (span <= 4) return ["1", "3"];
+                    if (span <= 6) return ["1", "4"];
+                    return ["1", "5"];
+                }
+                if (len === 3) {
+                    const g1 = midis[1] - midis[0];
+                    const g2 = midis[2] - midis[1];
+                    const total = midis[2] - midis[0];
+                    if (total <= 4) return ["1", "2", "3"];
+                    if (g1 <= 3 && g2 >= 5) return ["1", "2", "5"];
+                    if (g1 >= 5 && g2 <= 2) return ["1", "4", "5"];
+                    if (g1 >= 5 && g2 <= 4) return ["1", "3", "5"];
+                    if (total <= 7 && g1 <= 4 && g2 <= 4) return ["1", "2", "4"];
+                    return ["1", "3", "5"];
+                }
+                if (len === 4) {
+                    const g1 = midis[1] - midis[0];
+                    const g2 = midis[2] - midis[1];
+                    const g3 = midis[3] - midis[2];
+                    const total = midis[3] - midis[0];
+                    if (total <= 7 && g3 <= 2) return ["1", "2", "3", "4"];
+                    if (g3 <= 2 && g2 >= 3) return ["1", "2", "4", "5"];
+                    if (g1 >= 5 && g2 <= 2) return ["1", "3", "4", "5"];
+                    return ["1", "2", "3", "5"];
+                }
+                return ["1", "2", "3", "4", "5"].slice(0, len);
+            }
+        }
+
+        function getChordFingeringMap(chordObj) {
+            const lhArr = computeErgonomicHandFingers(chordObj.lh, "L", chordObj.lhFingers);
+            const rhArr = computeErgonomicHandFingers(chordObj.rh, "R", chordObj.rhFingers);
+
+            const map = {};
+            chordObj.lh.forEach((n, idx) => {
+                map[normalizeNoteName(n)] = { hand: "L", finger: lhArr[idx] || "1", rawNote: n };
+            });
+            chordObj.rh.forEach((n, idx) => {
+                map[normalizeNoteName(n)] = { hand: "R", finger: rhArr[idx] || "5", rawNote: n };
+            });
+            return map;
+        }
+
+        /**************************************************************
+         * TRUE 1-TO-1 BIJECTIVE VOICE LEADING MATCHER (NO FAN-OUT / NO CROSSING)
+         **************************************************************/
+        function matchVoicesOneToOne(prevList, currList) {
+            const A = prevList.slice().sort((a, b) => a.midi - b.midi);
+            const B = currList.slice().sort((a, b) => a.midi - b.midi);
+            const n = A.length;
+            const m = B.length;
+            if (n === 0 || m === 0) return [];
+
+            // Order-preserving optimal 1-to-1 matching of min(n, m) voices using DP
+            if (n <= m) {
+                const dp = Array.from({ length: n + 1 }, () => Array(m + 1).fill(Infinity));
+                const choice = Array.from({ length: n + 1 }, () => Array(m + 1).fill(false));
+                for (let j = 0; j <= m; j++) dp[0][j] = 0;
+
+                for (let i = 1; i <= n; i++) {
+                    for (let j = i; j <= m; j++) {
+                        const costMatch = dp[i - 1][j - 1] + Math.abs(A[i - 1].midi - B[j - 1].midi);
+                        const costSkip = dp[i][j - 1];
+                        if (costMatch <= costSkip) {
+                            dp[i][j] = costMatch;
+                            choice[i][j] = true;
+                        } else {
+                            dp[i][j] = costSkip;
+                        }
+                    }
+                }
+                const pairs = [];
+                let i = n, j = m;
+                while (i > 0 && j > 0) {
+                    if (choice[i][j]) {
+                        pairs.unshift({ from: A[i - 1], to: B[j - 1] });
+                        i--; j--;
+                    } else {
+                        j--;
+                    }
+                }
+                return pairs;
+            } else {
+                // n > m: match m notes of B to distinct subset of A
+                const dp = Array.from({ length: m + 1 }, () => Array(n + 1).fill(Infinity));
+                const choice = Array.from({ length: m + 1 }, () => Array(n + 1).fill(false));
+                for (let j = 0; j <= n; j++) dp[0][j] = 0;
+
+                for (let i = 1; i <= m; i++) {
+                    for (let j = i; j <= n; j++) {
+                        const costMatch = dp[i - 1][j - 1] + Math.abs(B[i - 1].midi - A[j - 1].midi);
+                        const costSkip = dp[i][j - 1];
+                        if (costMatch <= costSkip) {
+                            dp[i][j] = costMatch;
+                            choice[i][j] = true;
+                        } else {
+                            dp[i][j] = costSkip;
+                        }
+                    }
+                }
+                const pairs = [];
+                let i = m, j = n;
+                while (i > 0 && j > 0) {
+                    if (choice[i][j]) {
+                        pairs.unshift({ from: A[j - 1], to: B[i - 1] });
+                        i--; j--;
+                    } else {
+                        j--;
+                    }
+                }
+                return pairs;
+            }
+        }
+
+        function analyzeVoiceLeading(prevChordObj, currChordObj) {
+            if (!prevChordObj || !currChordObj) return [];
+            const prevItems = prevChordObj.notes.map((n, idx) => ({
+                note: n,
+                norm: normalizeNoteName(n),
+                midi: noteToMidi(n),
+                idx,
+                isRH: prevChordObj.rh.includes(n)
+            }));
+            const currItems = currChordObj.notes.map((n, idx) => ({
+                note: n,
+                norm: normalizeNoteName(n),
+                midi: noteToMidi(n),
+                idx,
+                isRH: currChordObj.rh.includes(n)
+            }));
+
+            const matchedPairs = matchVoicesOneToOne(prevItems, currItems);
+            return matchedPairs.map(({ from, to }) => {
+                const delta = to.midi - from.midi;
+                let type = "leap";
+                if (delta === 0) type = "common";
+                else if (Math.abs(delta) === 1) type = "half";
+                else if (Math.abs(delta) === 2) type = "whole";
+                return {
+                    fromNote: from.note,
+                    toNote: to.note,
+                    fromIdx: from.idx,
+                    toIdx: to.idx,
+                    fromMidi: from.midi,
+                    toMidi: to.midi,
+                    delta,
+                    type,
+                    isRH: to.isRH
+                };
+            });
+        }
+
+        /**************************************************************
+         * 4B. SALAMANDER PIANO SAMPLER + SYNTH ENGINE + TONE.TRANSPORT
+         **************************************************************/
+        let grandSampler = null;
+        let isSamplerLoaded = false;
+        let isSamplerLoading = false;
+        let pianoSynth = null;
+        let audioFilter = null;
+        let audioReverb = null;
+
+        const INSTRUMENT_PRESETS = {
+            grand: {
+                oscillator: { type: "fatsawtooth", count: 2, spread: 8 },
+                envelope: { attack: 0.005, decay: 1.8, sustain: 0.15, release: 1.5 },
+                filterFreq: 3400,
+                volume: -6
+            },
+            epiano: {
+                oscillator: { type: "fmtriangle", harmonicity: 2, modulationIndex: 1.4 },
+                envelope: { attack: 0.012, decay: 1.5, sustain: 0.28, release: 1.6 },
+                filterFreq: 2200,
+                volume: -7
+            },
+            organ: {
+                oscillator: { type: "fatsine", count: 3, spread: 18 },
+                envelope: { attack: 0.025, decay: 0.3, sustain: 0.85, release: 0.3 },
+                filterFreq: 2600,
+                volume: -9
+            },
+            vibes: {
+                oscillator: { type: "fmtriangle", harmonicity: 4, modulationIndex: 2.0 },
+                envelope: { attack: 0.004, decay: 2.3, sustain: 0.08, release: 2.2 },
+                filterFreq: 4500,
+                volume: -6
+            }
+        };
+
+        function initAudio() {
+            const preset = INSTRUMENT_PRESETS[currentInstrument] || INSTRUMENT_PRESETS.grand;
+            if (!audioFilter) {
+                audioFilter = new Tone.Filter(preset.filterFreq, "lowpass");
+                audioReverb = new Tone.Reverb({ decay: 2.0, wet: 0.24 });
+                audioFilter.chain(audioReverb, Tone.Destination);
+            }
+            if (!pianoSynth) {
+                pianoSynth = new Tone.PolySynth(Tone.Synth, {
+                    maxPolyphony: 16,
+                    oscillator: preset.oscillator,
+                    envelope: preset.envelope
+                }).connect(audioFilter);
+                pianoSynth.volume.value = preset.volume;
+            }
+            // Load Real Salamander Acoustic Grand Piano Sampler once audio starts
+            if (!grandSampler && !isSamplerLoading) {
+                isSamplerLoading = true;
+                const badge = document.getElementById("samplerStatusBadge");
+                if (badge) badge.textContent = "🎼 載入真實平台鋼琴取樣中...";
+                grandSampler = new Tone.Sampler({
+                    urls: {
+                        A2: "A2.mp3",
+                        C3: "C3.mp3",
+                        "D#3": "Ds3.mp3",
+                        "F#3": "Fs3.mp3",
+                        A3: "A3.mp3",
+                        C4: "C4.mp3",
+                        "D#4": "Ds4.mp3",
+                        "F#4": "Fs4.mp3",
+                        A4: "A4.mp3",
+                        C5: "C5.mp3",
+                        "D#5": "Ds5.mp3",
+                        "F#5": "Fs5.mp3",
+                        C6: "C6.mp3"
+                    },
+                    release: 1.4,
+                    baseUrl: "https://tonejs.github.io/audio/salamander/",
+                    onload: () => {
+                        isSamplerLoaded = true;
+                        isSamplerLoading = false;
+                        if (badge) {
+                            badge.textContent = "🎼 Salamander 真實平台鋼琴音源已啟用";
+                            badge.className = "px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-bold text-[11px]";
+                        }
+                    },
+                    onerror: () => {
+                        isSamplerLoading = false;
+                        if (badge) badge.textContent = "🎹 合成鋼琴音源已就緒";
+                    }
+                }).connect(audioReverb);
+                grandSampler.volume.value = -2;
+            }
+        }
+
+        function triggerActiveInstrument(notesArray, durationSec, time = undefined) {
+            if (!notesArray || notesArray.length === 0) return;
+            const normNotes = notesArray.map(n => normalizeNoteName(n));
+            if (currentInstrument === "grand" && isSamplerLoaded && grandSampler) {
+                grandSampler.triggerAttackRelease(normNotes, durationSec, time);
+            } else if (pianoSynth) {
+                pianoSynth.triggerAttackRelease(normNotes, durationSec, time);
+            }
+        }
+
+        function changeInstrument(instKey) {
+            currentInstrument = instKey;
+            const preset = INSTRUMENT_PRESETS[instKey] || INSTRUMENT_PRESETS.grand;
+            if (pianoSynth) {
+                pianoSynth.dispose();
+                pianoSynth = null;
+            }
+            if (audioFilter) {
+                audioFilter.frequency.value = preset.filterFreq;
+            }
+            initAudio();
+            refreshSelectedMeasure();
+        }
+
+        function changeGrooveStyle(grooveKey) {
+            currentGroove = grooveKey;
+            const badge = document.getElementById("activeGrooveBadge");
+            if (badge) badge.textContent = GROOVE_LABELS[grooveKey] || grooveKey;
+            renderEightBarStaff();
+            if (isPlayingSequence) {
+                stopSequence();
+                togglePlaySequence();
+            } else {
+                refreshSelectedMeasure();
+            }
+            saveStateToStorage();
+        }
+
+        function changeBpm(val) {
+            currentBpm = parseInt(val, 10) || 96;
+            document.getElementById("bpmValueLabel").textContent = currentBpm;
+            if (Tone.Transport) {
+                Tone.Transport.bpm.value = currentBpm;
+            }
+            saveStateToStorage();
+        }
+
+        function shiftTranspose(delta) {
+            let next = transposeSemitones + delta;
+            if (next > 6) next -= 12;
+            if (next < -5) next += 12;
+            setTranspose(next);
+        }
+
+        function setTranspose(semitones) {
+            transposeSemitones = semitones;
+            const selectEl = document.getElementById("transposeSelect");
+            if (selectEl) selectEl.value = String(semitones);
+            renderEightBarStaff();
+            const activeFilterBtn = document.querySelector(".chord-filter-btn.bg-amber-500");
+            const activeFilter = activeFilterBtn ? activeFilterBtn.id.replace("filter-", "") : "all";
+            filterChordTable(activeFilter);
+            selectTopic(currentTopicId, true);
+            refreshSelectedMeasure();
+            saveStateToStorage();
+        }
+
+        function clearScheduledGrooveEvents() {
+            if (Tone.Transport) {
+                Tone.Transport.stop();
+                Tone.Transport.cancel(0);
+            }
+            activeTimeouts.forEach(id => clearTimeout(id));
+            activeTimeouts = [];
+            if (pianoSynth) pianoSynth.releaseAll();
+            if (grandSampler && isSamplerLoaded) grandSampler.releaseAll();
+        }
+
+        // Build precise rhythmic hit events (offsetSec, lhNotes, rhNotes, gateSec) for 1 measure
+        function buildMeasureGrooveEvents(chordObj, barDurationSec) {
+            const lh = chordObj.lh && chordObj.lh.length ? chordObj.lh : [chordObj.notes[0]];
+            const rh = chordObj.rh && chordObj.rh.length ? chordObj.rh : chordObj.notes.slice(1);
+            const rootNote = lh[0];
+            const rootMidi = noteToMidi(rootNote);
+            const fifthNote = midiToNote(rootMidi + 7);
+            const sixthNote = midiToNote(rootMidi + 9);
+            const approachNote = midiToNote(rootMidi + 6);
+
+            const events = [];
+            const addHit = (offsetSec, lhPart, rhPart, gateSec) => {
+                events.push({ offsetSec, lhPart, rhPart, gateSec });
+            };
+
+            if (currentGroove === "block") {
+                addHit(0, lh, rh, barDurationSec * 0.88);
+            } else if (currentGroove === "bossa") {
+                const beatSec = barDurationSec / 4;
+                addHit(0, [rootNote], rh, beatSec * 1.35);
+                addHit(beatSec * 1.5, [], rh, beatSec * 0.75);
+                addHit(beatSec * 2.0, [fifthNote], [], beatSec * 1.25);
+                addHit(beatSec * 3.0, [rootNote], rh, beatSec * 0.85);
+            } else if (currentGroove === "swing") {
+                const beatSec = barDurationSec / 4;
+                const guideNote = lh[1] || fifthNote;
+                addHit(0, [rootNote], rh, beatSec * 0.85);
+                addHit(beatSec * 1.0, [guideNote], [], beatSec * 0.85);
+                addHit(beatSec * 1.66, [], rh, beatSec * 0.45);
+                addHit(beatSec * 2.0, [fifthNote], [], beatSec * 0.85);
+                addHit(beatSec * 3.0, [approachNote], [], beatSec * 0.65);
+                addHit(beatSec * 3.66, [], rh, beatSec * 0.35);
+            } else if (currentGroove === "blues") {
+                // Authentic 12/8 Slow Blues: 12 eighth-note triplets per measure (subSec = barDurationSec / 12)
+                const subSec = barDurationSec / 12;
+                addHit(0 * subSec, [rootNote], rh, subSec * 2.2);
+                addHit(2 * subSec, [fifthNote], [], subSec * 0.9);
+                addHit(3 * subSec, [sixthNote], rh, subSec * 2.2);
+                addHit(5 * subSec, [fifthNote], [], subSec * 0.9);
+                addHit(6 * subSec, [rootNote], rh, subSec * 2.2);
+                addHit(8 * subSec, [fifthNote], [], subSec * 0.9);
+                addHit(9 * subSec, [sixthNote], [], subSec * 1.8);
+                addHit(11 * subSec, [], rh, subSec * 0.9);
+            } else if (currentGroove === "neosoul") {
+                const beatSec = barDurationSec / 4;
+                lh.forEach((n, idx) => {
+                    addHit(idx * (beatSec * 0.32), [n], [], barDurationSec * 0.72);
+                });
+                rh.forEach((n, idx) => {
+                    addHit((lh.length + idx) * (beatSec * 0.32), [], [n], barDurationSec * 0.72);
+                });
+                addHit(beatSec * 2.5, [], rh, beatSec * 1.25);
+            }
+            return events;
+        }
+
+        function scheduleChordGrooveOnTransport(chordObj, measureStartSec, barDurationSec) {
+            const events = buildMeasureGrooveEvents(chordObj, barDurationSec);
+            events.forEach(ev => {
+                let notesToPlay = [];
+                if (handPracticeMode === "lh") notesToPlay = ev.lhPart;
+                else if (handPracticeMode === "rh") notesToPlay = ev.rhPart;
+                else notesToPlay = [...ev.lhPart, ...ev.rhPart];
+
+                if (!notesToPlay || notesToPlay.length === 0) return;
+                const eventTime = measureStartSec + ev.offsetSec;
+
+                Tone.Transport.schedule((audioTime) => {
+                    triggerActiveInstrument(notesToPlay, ev.gateSec, audioTime);
+                    Tone.Draw.schedule(() => {
+                        highlightPianoKeys(notesToPlay, ev.gateSec * 920, chordObj);
+                    }, audioTime);
+                }, eventTime);
+            });
+        }
+
+        // Play 1 Measure immediately using Tone.Transport
+        async function playMeasureWithGroove(chordObj, barDurationMs) {
+            try {
+                await Tone.start();
+                audioUnlocked = true;
+                initAudio();
+                clearScheduledGrooveEvents();
+                const barDurationSec = barDurationMs / 1000;
+                scheduleChordGrooveOnTransport(chordObj, 0.02, barDurationSec);
+                Tone.Transport.start("+0.01");
+            } catch (e) {
+                console.error("Groove playback error:", e);
+            }
+        }
+
+        async function playSingleNote(noteName) {
+            try {
+                await Tone.start();
+                audioUnlocked = true;
+                initAudio();
+                triggerActiveInstrument([noteName], 0.45);
+                highlightPianoKeys([noteName], 350);
+            } catch (e) {
+                console.error("Single note error:", e);
+            }
+        }
+
+        /**************************************************************
+         * 5. PIANO KEYBOARD GENERATOR (EXPANDED A2 to C6 - ALL BASS NOTES VISIBLE)
+         **************************************************************/
+        const WHITE_NOTES = [
+            "A2", "B2",
+            "C3", "D3", "E3", "F3", "G3", "A3", "B3",
+            "C4", "D4", "E4", "F4", "G4", "A4", "B4",
+            "C5", "D5", "E5", "F5", "G5", "A5", "B5",
+            "C6"
+        ];
+        const BLACK_NOTES_MAP = {
+            "A2": "A#2",
+            "C3": "C#3", "D3": "D#3", "F3": "F#3", "G3": "G#3", "A3": "A#3",
+            "C4": "C#4", "D4": "D#4", "F4": "F#4", "G4": "G#4", "A4": "A#4",
+            "C5": "C#5", "D5": "D#5", "F5": "F#5", "G5": "G#5", "A5": "A#5"
+        };
+
+        function renderPianoKeyboard() {
+            const container = document.getElementById("pianoContainer");
+            container.innerHTML = "";
+
+            WHITE_NOTES.forEach((wNote) => {
+                const wrapper = document.createElement("div");
+                wrapper.className = "relative flex-1 h-full flex";
+
+                // White Key with Fingering Badge Placeholder
+                const whiteKey = document.createElement("button");
+                whiteKey.id = `key-${wNote}`;
+                whiteKey.className = "white-key w-full h-full bg-white hover:bg-amber-50 border border-slate-300 rounded-b-lg flex flex-col justify-end items-center pb-1.5 text-[10px] font-bold text-slate-500 shadow-sm relative";
+                whiteKey.innerHTML = `
+                    <span id="finger-${wNote}" class="finger-badge hidden mb-1 px-1.5 py-0.5 rounded-full text-[10px] font-extrabold leading-none shadow"></span>
+                    <span>${wNote}</span>
+                `;
+                whiteKey.onclick = () => playSingleNote(wNote);
+                wrapper.appendChild(whiteKey);
+
+                // Black Key (if applicable) with Fingering Badge Placeholder
+                if (BLACK_NOTES_MAP[wNote]) {
+                    const bNote = BLACK_NOTES_MAP[wNote];
+                    const blackKey = document.createElement("button");
+                    blackKey.id = `key-${bNote}`;
+                    blackKey.className = "black-key absolute top-0 -right-[30%] w-[60%] h-[62%] bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-b-md z-10 flex flex-col justify-end items-center pb-1 text-[8px] font-medium text-slate-300 shadow-md";
+                    blackKey.innerHTML = `
+                        <span id="finger-${bNote}" class="finger-badge hidden mb-0.5 px-1 py-0.2 rounded-full text-[9px] font-extrabold leading-tight shadow"></span>
+                        <span>${bNote.replace(/\d/, '')}</span>
+                    `;
+                    blackKey.onclick = (e) => {
+                        e.stopPropagation();
+                        playSingleNote(bNote);
+                    };
+                    wrapper.appendChild(blackKey);
+                }
+
+                container.appendChild(wrapper);
+            });
+        }
+
+        let keyHighlightTimeout = null;
+        function highlightPianoKeys(notesArray, clearAfterMs = 950, chordRef = null) {
+            // Clear existing highlights & finger badges
+            document.querySelectorAll(".active-key").forEach(el => el.classList.remove("active-key"));
+            document.querySelectorAll(".finger-badge").forEach(el => {
+                el.classList.add("hidden");
+                el.textContent = "";
+            });
+
+            const activeChord = chordRef || getTransposedChord(currentSequence[selectedMeasureIndex]);
+            const fingerMap = getChordFingeringMap(activeChord);
+
+            notesArray.forEach(rawNote => {
+                const norm = normalizeNoteName(rawNote);
+                const keyEl = document.getElementById(`key-${norm}`);
+                if (keyEl) {
+                    keyEl.classList.add("active-key");
+                }
+                if (showFingering && fingerMap[norm]) {
+                    const fBadge = document.getElementById(`finger-${norm}`);
+                    if (fBadge) {
+                        const info = fingerMap[norm];
+                        fBadge.textContent = `${info.hand}${info.finger}`;
+                        fBadge.className = `finger-badge mb-0.5 px-1 py-0.5 rounded-md text-[9px] font-extrabold leading-none shadow-sm ${
+                            info.hand === "R"
+                                ? "bg-slate-950 text-amber-400 border border-amber-400"
+                                : "bg-blue-600 text-white border border-blue-300"
+                        }`;
+                    }
+                }
+            });
+
+            if (keyHighlightTimeout) clearTimeout(keyHighlightTimeout);
+            if (clearAfterMs > 0) {
+                keyHighlightTimeout = setTimeout(() => {
+                    document.querySelectorAll(".active-key").forEach(el => el.classList.remove("active-key"));
+                }, clearAfterMs);
+            }
+        }
+
+        /**************************************************************
+         * 6. 8-BAR INTERACTIVE GRAND STAFF SVG GENERATOR
+         **************************************************************/
+        // Compute vertical Y coordinate on Grand Staff for a given pitch (e.g. "C4", "E3", "G4")
+        function getNoteStaffY(noteStr) {
+            const stepOrder = { C: 0, D: 1, E: 2, F: 3, G: 4, A: 5, B: 6 };
+            const letter = noteStr.charAt(0).toUpperCase();
+            const octave = parseInt(noteStr.slice(-1), 10);
+            const accidental = noteStr.length === 3 ? noteStr.charAt(1) : "";
+
+            // Diatonic steps relative to C4 (Middle C)
+            const stepsFromC4 = (octave - 4) * 7 + stepOrder[letter];
+
+            // Treble clef ( stepsFromC4 >= 0 ): C4 is at y=97, each step is 4px
+            // Bass clef ( stepsFromC4 < 0 ): B3 is at y=117, each step down is +4px
+            let y = 97;
+            if (stepsFromC4 >= 0) {
+                y = 97 - stepsFromC4 * 4;
+            } else {
+                y = 113 - (stepsFromC4 + 1) * 4;
+            }
+
+            return { y, accidental, stepsFromC4 };
+        }
+
+        function renderEightBarStaff() {
+            const svg = document.getElementById("staffSvg");
+            const startX = 58;
+            const staffWidth = 808;
+            const barWidth = staffWidth / 8; // 101px per measure
+            const isBlues12_8 = currentGroove === "blues";
+            const topTimeSig = isBlues12_8 ? "12" : "4";
+            const botTimeSig = isBlues12_8 ? "8" : "4";
+
+            // Treble staff lines: E4(89), G4(81), B4(73), D5(65), F5(57)
+            const trebleLines = [57, 65, 73, 81, 89];
+            // Bass staff lines: G2(149), B2(141), D3(133), F3(125), A3(117)
+            const bassLines = [117, 125, 133, 141, 149];
+
+            let html = `
+                <!-- Clef & Time Signature Labels -->
+                <text x="8" y="84" font-size="36" class="fill-slate-700 dark:fill-slate-300 font-serif">𝄞</text>
+                <text x="8" y="142" font-size="28" class="fill-slate-700 dark:fill-slate-300 font-serif">𝄢</text>
+                <!-- Time Signature -->
+                <text x="41" y="72" text-anchor="middle" font-size="15" font-weight="bold" class="fill-slate-600 dark:fill-slate-400 font-serif">${topTimeSig}</text>
+                <text x="41" y="87" text-anchor="middle" font-size="15" font-weight="bold" class="fill-slate-600 dark:fill-slate-400 font-serif">${botTimeSig}</text>
+                <text x="41" y="132" text-anchor="middle" font-size="15" font-weight="bold" class="fill-slate-600 dark:fill-slate-400 font-serif">${topTimeSig}</text>
+                <text x="41" y="147" text-anchor="middle" font-size="15" font-weight="bold" class="fill-slate-600 dark:fill-slate-400 font-serif">${botTimeSig}</text>
+                <line x1="54" y1="57" x2="54" y2="149" class="stroke-slate-500 dark:stroke-slate-400" stroke-width="2" />
+            `;
+
+            // Draw horizontal staff lines
+            trebleLines.forEach(y => {
+                html += `<line x1="54" y1="${y}" x2="${startX + staffWidth}" y2="${y}" class="stroke-slate-300 dark:stroke-slate-700" stroke-width="1.2" />`;
+            });
+            bassLines.forEach(y => {
+                html += `<line x1="54" y1="${y}" x2="${startX + staffWidth}" y2="${y}" class="stroke-slate-300 dark:stroke-slate-700" stroke-width="1.2" />`;
+            });
+
+            // Store exact rendered coordinates per measure & note index for accurate 1-to-1 Voice Leading lines
+            const measureNoteCoords = [];
+            const grooveRhythmBadges = {
+                bossa: "♩. ♪ ♩ ♩",
+                swing: "♩ ♩ ♩ ♩ (Walk)",
+                blues: "12/8 ♩. ♩. ♩. ♩.",
+                neosoul: "♬ 琶音 + 切分",
+                block: "𝅝 全音符齊奏"
+            };
+
+            // Draw each of the 8 measures
+            currentSequence.forEach((chordKey, i) => {
+                const x = startX + i * barWidth;
+                const chordObj = getTransposedChord(chordKey);
+                const isSelected = i === selectedMeasureIndex;
+                const coordsForBar = [];
+
+                // Clickable Measure Box
+                html += `
+                    <g class="cursor-pointer" onclick="selectAndPlayMeasure(${i})">
+                        <rect id="measure-rect-${i}" x="${x + 2}" y="8" width="${barWidth - 4}" height="168" rx="8"
+                              class="measure-box fill-transparent hover:fill-amber-500/10 ${isSelected ? 'selected' : ''}" />
+                        
+                        <!-- Measure Number -->
+                        <text x="${x + 7}" y="21" font-size="9.5" class="fill-slate-400 dark:fill-slate-500 font-mono">M${i + 1}</text>
+                        
+                        <!-- Chord Symbol Above Staff -->
+                        <text x="${x + barWidth / 2}" y="39" text-anchor="middle" font-size="13" font-weight="bold"
+                              class="fill-amber-600 dark:fill-amber-400">${escapeHtml(chordObj.displayName)}</text>
+                `;
+
+                const centerX = x + barWidth / 2 + 3;
+                const fingerMap = getChordFingeringMap(chordObj);
+
+                // Draw LH / RH Stems for clarity
+                if (chordObj.rh.length > 0) {
+                    const rhYs = chordObj.rh.map(n => getNoteStaffY(n).y);
+                    const minRhY = Math.min(...rhYs);
+                    const maxRhY = Math.max(...rhYs);
+                    html += `<line x1="${centerX + 11.5}" y1="${minRhY - 16}" x2="${centerX + 11.5}" y2="${maxRhY}" class="stroke-amber-500/70" stroke-width="1.3" />`;
+                }
+                if (chordObj.lh.length > 0) {
+                    const lhYs = chordObj.lh.map(n => getNoteStaffY(n).y);
+                    const minLhY = Math.min(...lhYs);
+                    const maxLhY = Math.max(...lhYs);
+                    html += `<line x1="${centerX - 7.5}" y1="${minLhY}" x2="${centerX - 7.5}" y2="${maxLhY + 14}" class="stroke-blue-500/70" stroke-width="1.3" />`;
+                }
+
+                chordObj.notes.forEach((noteStr, nIdx) => {
+                    const { y, accidental, stepsFromC4 } = getNoteStaffY(noteStr);
+                    const xOffset = (nIdx % 2 === 1) ? 6.5 : -2.5;
+                    const noteX = centerX + xOffset;
+                    coordsForBar.push({ x: noteX, y, note: noteStr });
+
+                    // Ledger lines: Middle C (C4: stepsFromC4 === 0) or High A5/C6 (stepsFromC4 >= 12)
+                    if (stepsFromC4 === 0) {
+                        html += `<line x1="${noteX - 8.5}" y1="97" x2="${noteX + 8.5}" y2="97" class="stroke-slate-500 dark:stroke-slate-400" stroke-width="1.4" />`;
+                    } else if (stepsFromC4 >= 12) {
+                        html += `<line x1="${noteX - 8.5}" y1="49" x2="${noteX + 8.5}" y2="49" class="stroke-slate-500 dark:stroke-slate-400" stroke-width="1.4" />`;
+                    }
+
+                    // Accidental (# or b)
+                    if (accidental) {
+                        const accSymbol = accidental === "#" ? "♯" : "♭";
+                        html += `<text x="${noteX - 14}" y="${y + 4}" font-size="11.5" font-weight="bold" class="fill-amber-500">${accSymbol}</text>`;
+                    }
+
+                    // Notehead
+                    const isRightHand = chordObj.rh.includes(noteStr);
+                    const fillClass = isRightHand ? "fill-amber-500" : "fill-blue-500 dark:fill-blue-400";
+                    html += `<ellipse cx="${noteX}" cy="${y}" rx="5.0" ry="3.6" transform="rotate(-18 ${noteX} ${y})" class="${fillClass}" />`;
+
+                    // Fingering Number
+                    if (showFingering) {
+                        const norm = normalizeNoteName(noteStr);
+                        const fInfo = fingerMap[norm];
+                        if (fInfo) {
+                            const fX = (nIdx % 2 === 1) ? noteX + 9.5 : noteX - 9.5;
+                            const fColor = isRightHand ? "fill-amber-600 dark:fill-amber-300" : "fill-blue-600 dark:fill-blue-300";
+                            html += `<text x="${fX}" y="${y + 3}" text-anchor="middle" font-size="8.5" font-weight="bold" class="${fColor} font-mono">${fInfo.finger}</text>`;
+                        }
+                    }
+                });
+
+                measureNoteCoords.push(coordsForBar);
+
+                // 1-to-1 Bijective Voice Leading Connectors from Previous Measure
+                if (showVoiceLeading && i > 0) {
+                    const prevChordObj = getTransposedChord(currentSequence[i - 1]);
+                    const prevCoords = measureNoteCoords[i - 1] || [];
+                    const moves = analyzeVoiceLeading(prevChordObj, chordObj);
+
+                    moves.forEach((mv) => {
+                        if (mv.type === "common" || mv.type === "half" || mv.type === "whole") {
+                            const c1 = prevCoords[mv.fromIdx] || { x: startX + (i - 1) * barWidth + barWidth / 2, y: getNoteStaffY(mv.fromNote).y };
+                            const c2 = coordsForBar[mv.toIdx] || { x: centerX, y: getNoteStaffY(mv.toNote).y };
+                            const strokeColor = mv.type === "common" ? "#10b981" : "#f59e0b";
+                            const dash = mv.type === "common" ? "3,2" : "none";
+                            const opacity = (i === selectedMeasureIndex) ? "0.95" : "0.42";
+                            html += `<line x1="${c1.x + 6}" y1="${c1.y}" x2="${c2.x - 6}" y2="${c2.y}" stroke="${strokeColor}" stroke-width="1.6" stroke-dasharray="${dash}" opacity="${opacity}" />`;
+                        }
+                    });
+                }
+
+                // Bottom Groove Rhythm Strip per measure
+                html += `
+                        <text x="${x + barWidth / 2}" y="168" text-anchor="middle" font-size="8.5" class="fill-slate-400 dark:fill-slate-500 font-mono">${grooveRhythmBadges[currentGroove] || "4/4"}</text>
+                        <line x1="${x + barWidth}" y1="57" x2="${x + barWidth}" y2="89" class="stroke-slate-400 dark:stroke-slate-600" stroke-width="1.4" />
+                        <line x1="${x + barWidth}" y1="117" x2="${x + barWidth}" y2="149" class="stroke-slate-400 dark:stroke-slate-600" stroke-width="1.4" />
+                    </g>
+                `;
+            });
+
+            svg.innerHTML = html;
+            updateSelectedBarInfo(selectedMeasureIndex);
+        }
+
+        function updateSelectedBarInfo(index, overrideChordKey = null) {
+            const activeKey = overrideChordKey || currentSequence[index];
+            const chordObj = getTransposedChord(activeKey);
+            const fingerMap = getChordFingeringMap(chordObj);
+
+            const isPreviewing = Boolean(overrideChordKey && overrideChordKey !== currentSequence[index]);
+            const previewPill = document.getElementById("previewStatusPill");
+            const applyBtn = document.getElementById("applyPreviewBtn");
+            if (previewPill && applyBtn) {
+                if (isPreviewing) {
+                    previewPill.classList.remove("hidden");
+                    applyBtn.classList.remove("hidden");
+                    applyBtn.textContent = `套用至 M${index + 1} 小節`;
+                } else {
+                    previewPill.classList.add("hidden");
+                    applyBtn.classList.add("hidden");
+                }
+            }
+
+            document.getElementById("activeBarBadge").textContent = `第 ${index + 1} 小節`;
+            document.getElementById("activeChordName").textContent = chordObj.displayName;
+            document.getElementById("activeChordDesc").textContent = `${chordObj.formula} ｜ ${chordObj.desc}`;
+
+            const badgesContainer = document.getElementById("activeChordNotesBadges");
+            badgesContainer.innerHTML = chordObj.notes.map(n => {
+                const isRH = chordObj.rh.includes(n);
+                const norm = normalizeNoteName(n);
+                const fInfo = fingerMap[norm];
+                const fingerTag = (showFingering && fInfo) ? `<span class="ml-1 opacity-75 text-[10px]">(${fInfo.hand === 'R' ? '右' : '左'}${fInfo.finger}指)</span>` : "";
+                const badgeColor = isRH
+                    ? "bg-amber-500/20 text-amber-600 dark:text-amber-300 border-amber-500/30"
+                    : "bg-blue-500/20 text-blue-600 dark:text-blue-300 border-blue-500/30";
+                return `<span class="px-2 py-0.5 rounded-md border font-mono font-bold ${badgeColor}">${n}${fingerTag}</span>`;
+            }).join("");
+
+            // Update 1-to-1 Smooth Voice Leading Guide Banner
+            const vlBanner = document.getElementById("voiceLeadingBanner");
+            if (!showVoiceLeading) {
+                vlBanner.classList.add("hidden");
+                return;
+            }
+            vlBanner.classList.remove("hidden");
+
+            const nextIndex = (index + 1) % 8;
+            const isPhraseLoop = index === 7; // M8 → M1 is phrase end / loop-back, not "next bar in phrase"
+            const nextChordObj = getTransposedChord(currentSequence[nextIndex]);
+            const moves = analyzeVoiceLeading(chordObj, nextChordObj);
+            const smoothMoves = moves.filter(m => m.type === "common" || m.type === "half" || m.type === "whole");
+
+            const moveBadges = smoothMoves.map(m => {
+                if (m.type === "common") {
+                    return `<span class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-mono font-bold">⚓ ${escapeHtml(m.fromNote)} → ${escapeHtml(m.toNote)} (保留不動)</span>`;
+                }
+                const dirArrow = m.delta > 0 ? "↗" : "↘";
+                const stepLabel = Math.abs(m.delta) === 1 ? "半音" : "全音";
+                return `<span class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300 font-mono font-bold">${escapeHtml(m.fromNote)} ${dirArrow} ${escapeHtml(m.toNote)} (${stepLabel})</span>`;
+            }).join("");
+
+            const routeLabel = isPhraseLoop
+                ? `樂句結尾／循環回接 (M8 ${escapeHtml(chordObj.displayName)} ↻ M1 ${escapeHtml(nextChordObj.displayName)})`
+                : `1對1 聲部導進 (M${index + 1} ${escapeHtml(chordObj.displayName)} → M${nextIndex + 1} ${escapeHtml(nextChordObj.displayName)})`;
+
+            vlBanner.innerHTML = `
+                <div class="flex flex-wrap items-center gap-1.5">
+                    <span class="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                        <i class="fa-solid fa-route"></i>
+                        <span>${routeLabel}：</span>
+                    </span>
+                    ${moveBadges || `<span class="text-slate-500">平行手型移動至目標和弦</span>`}
+                </div>
+                <span class="text-[11px] text-slate-500 dark:text-slate-400">${isPhraseLoop
+                    ? "💡 第 8 小節係樂句結尾；以下係循環回 M1 嘅聲部連接（唔係樂句內下一小節）｜綠虛線＝共同音 ｜ 金實線＝半音/全音"
+                    : "💡 綠虛線＝共同音保留不動 ｜ 金實線＝1對1 半音/全音最小位移"}</span>
+            `;
+        }
+
+        function toggleFingering() {
+            showFingering = !showFingering;
+            const btn = document.getElementById("toggleFingeringBtn");
+            btn.innerHTML = `<i class="fa-solid fa-fingerprint"></i><span>指法標記 (1-5)：${showFingering ? "開" : "關"}</span>`;
+            btn.className = showFingering
+                ? "px-2.5 py-1 rounded-lg bg-amber-500 text-slate-950 font-bold flex items-center gap-1.5 shadow-sm transition-all"
+                : "px-2.5 py-1 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-medium flex items-center gap-1.5 transition-all";
+            renderEightBarStaff();
+            const chordObj = getTransposedChord(currentSequence[selectedMeasureIndex]);
+            highlightPianoKeys(chordObj.notes, 1800, chordObj);
+        }
+
+        function toggleVoiceLeading() {
+            showVoiceLeading = !showVoiceLeading;
+            const btn = document.getElementById("toggleVoiceLeadingBtn");
+            btn.innerHTML = `<i class="fa-solid fa-route"></i><span>平滑導音軌跡：${showVoiceLeading ? "開" : "關"}</span>`;
+            btn.className = showVoiceLeading
+                ? "px-2.5 py-1 rounded-lg bg-emerald-500 text-slate-950 font-bold flex items-center gap-1.5 shadow-sm transition-all"
+                : "px-2.5 py-1 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-medium flex items-center gap-1.5 transition-all";
+            renderEightBarStaff();
+        }
+
+        function setHandPracticeMode(mode) {
+            handPracticeMode = mode;
+            ["both", "lh", "rh"].forEach(m => {
+                const el = document.getElementById(`handMode-${m}`);
+                if (!el) return;
+                if (m === mode) {
+                    el.className = "px-2 py-0.5 rounded-md bg-amber-500 text-slate-950 font-bold transition-all";
+                } else {
+                    el.className = "px-2 py-0.5 rounded-md text-slate-600 dark:text-slate-300 font-medium transition-all";
+                }
+            });
+            refreshSelectedMeasure();
+        }
+
+        function togglePopSandboxModal() {
+            const drawer = document.getElementById("popSandboxDrawer");
+            drawer.classList.toggle("hidden");
+            if (!drawer.classList.contains("hidden")) {
+                selectPopSong(currentPopSongKey);
+            }
+        }
+
+        function selectPopSong(songKey) {
+            currentPopSongKey = songKey;
+            setPopReharmLevel(currentPopLevel);
+        }
+
+        function setPopReharmLevel(level) {
+            stopSequence();
+            pushSequenceHistory();
+            currentPopLevel = level;
+            const slider = document.getElementById("popLevelSlider");
+            if (slider) slider.value = String(level);
+
+            const songData = POP_SANDBOX_SONGS[currentPopSongKey] || POP_SANDBOX_SONGS.cantopop1;
+            const levelTitles = {
+                1: "Level 1：原版流行三和弦 (Basic Pop Triads)",
+                2: "Level 2：都會爵士 7/9 擴充 (Lush 7th/9th Voicings)",
+                3: "Level 3：大師重配 (Tritone Sub + Passing Chords)"
+            };
+            const badge = document.getElementById("popLevelBadge");
+            if (badge) badge.textContent = levelTitles[level];
+
+            [1, 2, 3].forEach(l => {
+                const btn = document.getElementById(`popLvlBtn-${l}`);
+                if (!btn) return;
+                if (l === level) {
+                    btn.className = "py-1.5 px-2 rounded-lg text-[11px] font-bold bg-purple-600 text-white border border-purple-500 shadow transition-all text-center";
+                } else {
+                    btn.className = "py-1.5 px-2 rounded-lg text-[11px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-purple-400 transition-all text-center";
+                }
+            });
+
+            const noteBox = document.getElementById("popSongNoteBox");
+            if (noteBox) {
+                noteBox.innerHTML = `<span class="font-bold text-purple-600 dark:text-purple-400">${songData.songs}</span> — ${songData.notes[level]}`;
+            }
+
+            customBasicSequence = [...songData.levels[1]];
+            customAdvancedSequence = [...songData.levels[level]];
+            isCustomMode = true;
+            currentSequence = [...songData.levels[level]];
+            previewedChordKey = null;
+
+            renderEightBarStaff();
+            refreshSelectedMeasure();
+            saveStateToStorage();
+        }
+
+        // Visual-only measure select (no Tone.start) — used on load / preset switch before first gesture
+        function selectMeasureOnly(index) {
+            clearScheduledGrooveEvents();
+            previewedChordKey = null;
+            selectedMeasureIndex = index;
+            renderEightBarStaff();
+        }
+
+        // Refresh selection; only audiate if user already unlocked audio (or forcePlay)
+        function refreshSelectedMeasure(forcePlay = false) {
+            selectMeasureOnly(selectedMeasureIndex);
+            if (forcePlay || audioUnlocked) {
+                const chordKey = currentSequence[selectedMeasureIndex];
+                const chordObj = getTransposedChord(chordKey);
+                const barDurationMs = (60 / currentBpm) * 4 * 1000;
+                playMeasureWithGroove(chordObj, barDurationMs);
+            }
+        }
+
+        // User-gesture path (measure click / 試聽): unlocks audio and plays
+        function selectAndPlayMeasure(index) {
+            clearScheduledGrooveEvents();
+            previewedChordKey = null;
+            selectedMeasureIndex = index;
+            renderEightBarStaff();
+            const chordKey = currentSequence[index];
+            const chordObj = getTransposedChord(chordKey);
+            const barDurationMs = (60 / currentBpm) * 4 * 1000;
+            playMeasureWithGroove(chordObj, barDurationMs);
+        }
+
+        /**************************************************************
+         * 7. 8-BAR SEQUENCE PLAYBACK (TONE.TRANSPORT) & UPGRADE CONTROLS
+         **************************************************************/
+        async function togglePlaySequence() {
+            if (isPlayingSequence) {
+                stopSequence();
+                return;
+            }
+
+            await Tone.start();
+            audioUnlocked = true;
+            initAudio();
+            clearScheduledGrooveEvents();
+
+            isPlayingSequence = true;
+            previewedChordKey = null;
+            document.getElementById("playSeqIcon").className = "fa-solid fa-pause";
+            document.getElementById("playSeqText").textContent = "律動播放中...";
+
+            const barDurationSec = (60 / currentBpm) * 4;
+
+            for (let step = 0; step < 8; step++) {
+                const measureStartSec = 0.05 + step * barDurationSec;
+                const chordKey = currentSequence[step];
+                const chordObj = getTransposedChord(chordKey);
+
+                // Schedule UI measure highlight on Tone.Draw
+                Tone.Transport.schedule((audioTime) => {
+                    Tone.Draw.schedule(() => {
+                        if (!isPlayingSequence) return;
+                        selectedMeasureIndex = step;
+                        renderEightBarStaff();
+                        document.querySelectorAll(".measure-box").forEach(el => el.classList.remove("playing"));
+                        const rect = document.getElementById(`measure-rect-${step}`);
+                        if (rect) rect.classList.add("playing");
+                    }, audioTime);
+                }, measureStartSec);
+
+                // Schedule all groove notes for this measure
+                scheduleChordGrooveOnTransport(chordObj, measureStartSec, barDurationSec);
+            }
+
+            // Schedule sequence completion
+            Tone.Transport.schedule((audioTime) => {
+                Tone.Draw.schedule(() => {
+                    stopSequence();
+                }, audioTime);
+            }, 0.05 + 8 * barDurationSec);
+
+            Tone.Transport.start("+0.02");
+        }
+
+        function stopSequence() {
+            isPlayingSequence = false;
+            clearScheduledGrooveEvents();
+            document.getElementById("playSeqIcon").className = "fa-solid fa-play";
+            document.getElementById("playSeqText").textContent = "播放 8 小節伴奏";
+            document.querySelectorAll(".measure-box").forEach(el => el.classList.remove("playing"));
+        }
+
+        function switchProgressionMode(mode, recordUndo = true) {
+            stopSequence();
+            if (recordUndo) pushSequenceHistory();
+            currentMode = mode;
+            previewedChordKey = null;
+            const basicBtn = document.getElementById("modeBasicBtn");
+            const advBtn = document.getElementById("modeAdvBtn");
+
+            if (mode === "basic") {
+                basicBtn.className = "px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-500 text-slate-950 shadow transition-all";
+                advBtn.className = "px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-300 transition-all";
+                currentSequence = isCustomMode ? [...customBasicSequence] : [...PRESET_EXERCISES[currentExerciseKey].basic];
+            } else {
+                advBtn.className = "px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-500 text-slate-950 shadow transition-all";
+                basicBtn.className = "px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-300 transition-all";
+                currentSequence = isCustomMode ? [...customAdvancedSequence] : [...PRESET_EXERCISES[currentExerciseKey].advanced];
+            }
+
+            renderEightBarStaff();
+            refreshSelectedMeasure();
+            saveStateToStorage();
+        }
+
+        function loadPresetExercise(exKey) {
+            stopSequence();
+            pushSequenceHistory();
+            isCustomMode = false;
+            currentExerciseKey = exKey;
+            const sel = document.getElementById("exerciseSelect");
+            if (sel) sel.value = exKey;
+            switchProgressionMode("advanced", false);
+            saveStateToStorage();
+        }
+
+        /**************************************************************
+         * 8. FULL 12-KEY REGEX CHORD PARSER & DYNAMIC VOICING GENERATOR
+         **************************************************************/
+        function initManualInputs() {
+            const grid = document.getElementById("manualInputsGrid");
+            const defaults = ["Cmaj7", "Am7", "Dm7", "G7", "Em7", "A7", "Dm7", "G7"];
+            grid.innerHTML = defaults.map((ch, idx) => `
+                <div class="flex flex-col">
+                    <label class="text-[10px] font-mono text-slate-500 dark:text-slate-400 mb-0.5">第 ${idx + 1} 小節</label>
+                    <input type="text" id="manual-bar-${idx}" value="${ch}"
+                           class="w-full px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs sm:text-sm font-bold text-center focus:outline-none focus:border-amber-500" />
+                </div>
+            `).join("");
+        }
+
+        function toggleManualInputModal() {
+            const drawer = document.getElementById("manualInputDrawer");
+            drawer.classList.toggle("hidden");
+        }
+
+        // Fit generated LH + RH MIDI arrays neatly into A2(45)..C6(84)
+        function fitVoicingMidis(lhMidis, rhMidis) {
+            let shift = 0;
+            const minM = Math.min(...lhMidis, ...rhMidis);
+            const maxM = Math.max(...lhMidis, ...rhMidis);
+            if (minM < 45) shift = 12;
+            else if (maxM > 84) shift = -12;
+            return {
+                lh: lhMidis.map(m => midiToNote(m + shift)),
+                rh: rhMidis.map(m => midiToNote(m + shift))
+            };
+        }
+
+        // Dynamic 12-Key Regex Chord Parser (fixes Cmaj7 -> Am9 bug, Ab -> A7 bug, etc.)
+        function parseUserChord(rawInput, targetIndex, enableTritoneSub = false) {
+            // Strip HTML-ish chars from user input before any name/desc / innerHTML use
+            const clean = (rawInput || "C").trim()
+                .replace(/[<>&"'`]/g, "")
+                .replace(/♯/g, "#")
+                .replace(/♭/g, "b");
+
+            // 1. Exact match in CHORD_DATABASE
+            if (CHORD_DATABASE[clean]) {
+                const basicKey = CHORD_DATABASE[clean].basicEquivalent || clean;
+                let advKey = CHORD_DATABASE[clean].upgradeTo || clean;
+                if (enableTritoneSub && (targetIndex === 3 || targetIndex === 7) && (clean === "G" || clean === "G7")) {
+                    advKey = "Db9#11";
+                }
+                return { basic: basicKey, advanced: advKey };
+            }
+
+            // 2. Regex parse: Root Letter + Accidental + Quality Suffix
+            const match = clean.match(/^([A-Ga-g])([b#]?)(.*)$/);
+            if (!match) return { basic: "C", advanced: "Cmaj9" };
+
+            const rootLetter = match[1].toUpperCase();
+            const acc = match[2];
+            const suffix = match[3].trim();
+
+            const flatToSharp = { Db: "C#", Eb: "D#", Gb: "F#", Ab: "G#", Bb: "A#", Cb: "B", Fb: "E" };
+            const rootDisplay = rootLetter + acc;
+            const rootSharp = flatToSharp[rootDisplay] || rootDisplay;
+            const pc = PITCH_CLASSES_SHARP.indexOf(rootSharp);
+            if (pc === -1) return { basic: "C", advanced: "Cmaj9" };
+
+            // Determine optimal bass root MIDI around C3(48)..G#3(56) or A2(45)..B2(47)
+            const rootMidi = (pc >= 9) ? (48 + pc - 12) : (48 + pc); // A2(45), Bb2(46), B2(47), C3(48)..Ab3(56)
+
+            // Classify chord quality accurately (Check 'maj' BEFORE 'm'!)
+            let family = "major";
+            const sLower = suffix.toLowerCase();
+
+            if (/^(m7b5|min7b5|ø|ø7|m11b5)/i.test(suffix)) {
+                family = "halfdim";
+            } else if (/^(dim|dim7|o|o7)/i.test(suffix)) {
+                family = "dim";
+            } else if (/^(maj|M7|M9|Δ|6|maj7|maj9)/i.test(suffix) || suffix === "" || suffix === "M") {
+                family = "major";
+            } else if (/^(m|min|-)/i.test(suffix) && !/^maj/i.test(sLower)) {
+                family = "minor";
+            } else if (/alt|#9|b9|b13/i.test(suffix)) {
+                family = "dom_alt";
+            } else if (/7|9|11|13|sus/i.test(suffix)) {
+                family = "dominant";
+            }
+
+            // Build Basic & Advanced Chord Definitions dynamically for this exact Root & Family
+            const basicKey = `USR_BAS_${rootDisplay}_${family}`;
+            let advKey = `USR_ADV_${rootDisplay}_${family}`;
+
+            if (family === "major") {
+                const bas = fitVoicingMidis([rootMidi, rootMidi + 7], [rootMidi + 12, rootMidi + 16, rootMidi + 19]);
+                registerChordInDatabase(basicKey, {
+                    name: `${rootDisplay}${suffix || ""}`,
+                    category: "basic",
+                    formula: "1 - 5 | 1 - 3 - 5",
+                    lh: bas.lh,
+                    rh: bas.rh,
+                    desc: `${rootDisplay} 基礎大調和弦`
+                });
+                const adv = fitVoicingMidis([rootMidi, rootMidi + 4], [rootMidi + 7, rootMidi + 11, rootMidi + 14, rootMidi + 19]);
+                registerChordInDatabase(advKey, {
+                    name: `${rootDisplay}maj9`,
+                    basicEquivalent: `${rootDisplay}${suffix || ""}`,
+                    category: "major",
+                    formula: "1 - 3 | 5 - 7 - 9 - 5",
+                    lh: adv.lh,
+                    rh: adv.rh,
+                    desc: `${rootDisplay}maj9 大九和弦（加入大七度與九度張力音）`
+                });
+            } else if (family === "minor") {
+                const bas = fitVoicingMidis([rootMidi, rootMidi + 7], [rootMidi + 12, rootMidi + 15, rootMidi + 19]);
+                registerChordInDatabase(basicKey, {
+                    name: `${rootDisplay}m7`,
+                    category: "basic",
+                    formula: "1 - 5 | 1 - b3 - 5",
+                    lh: bas.lh,
+                    rh: bas.rh,
+                    desc: `${rootDisplay}m 基礎小調和弦`
+                });
+                const adv = fitVoicingMidis([rootMidi, rootMidi + 3], [rootMidi + 7, rootMidi + 10, rootMidi + 14, rootMidi + 17]);
+                registerChordInDatabase(advKey, {
+                    name: `${rootDisplay}m9`,
+                    basicEquivalent: `${rootDisplay}m`,
+                    category: "minor",
+                    formula: "1 - b3 | 5 - b7 - 9 - 11",
+                    lh: adv.lh,
+                    rh: adv.rh,
+                    desc: `${rootDisplay}m9 現代爵士小九和弦（含 9 與 11 度音）`
+                });
+            } else if (family === "halfdim" || family === "dim") {
+                const bas = fitVoicingMidis([rootMidi, rootMidi + 6, rootMidi + 10], [rootMidi + 15, rootMidi + 18]);
+                registerChordInDatabase(basicKey, {
+                    name: `${rootDisplay}m7b5`,
+                    category: "basic",
+                    formula: "1 - b5 - b7 | b3 - b5",
+                    lh: bas.lh,
+                    rh: bas.rh,
+                    desc: `${rootDisplay}m7b5 半減七和弦`
+                });
+                const adv = fitVoicingMidis([rootMidi, rootMidi + 6, rootMidi + 10], [rootMidi + 15, rootMidi + 17, rootMidi + 18, rootMidi + 22]);
+                registerChordInDatabase(advKey, {
+                    name: `${rootDisplay}m11(b5)`,
+                    basicEquivalent: `${rootDisplay}m7b5`,
+                    category: "minor",
+                    formula: "1 - b5 - b7 | b3 - 11 - b5 - b7",
+                    lh: adv.lh,
+                    rh: adv.rh,
+                    desc: `${rootDisplay}m11(b5) 高級小調二級半減和弦（含 11 度自然音）`
+                });
+            } else {
+                // Dominant or Altered Dominant
+                const bas = fitVoicingMidis([rootMidi, rootMidi + 4, rootMidi + 10], [rootMidi + 14, rootMidi + 19]);
+                registerChordInDatabase(basicKey, {
+                    name: `${rootDisplay}7`,
+                    category: "basic",
+                    formula: "1 - 3 - b7 | 9 - 5",
+                    lh: bas.lh,
+                    rh: bas.rh,
+                    desc: `${rootDisplay}7 基礎屬七和弦`
+                });
+
+                // Optional Tritone Sub on cadence bars (bar 4 or bar 8) if user checked the option
+                if (enableTritoneSub && (targetIndex === 3 || targetIndex === 7)) {
+                    const subPc = (pc + 6) % 12;
+                    const subRootName = PITCH_CLASSES_DISPLAY[subPc];
+                    const subRootMidi = (subPc >= 9) ? (48 + subPc - 12) : (48 + subPc);
+                    advKey = `USR_SUB_${subRootName}9#11`;
+                    const subVoicing = fitVoicingMidis(
+                        [subRootMidi, subRootMidi + 4, subRootMidi + 10],
+                        [subRootMidi + 14, subRootMidi + 18, subRootMidi + 21]
+                    );
+                    registerChordInDatabase(advKey, {
+                        name: `${subRootName}9(#11)`,
+                        basicEquivalent: `${rootDisplay}7`,
+                        category: "dominant",
+                        formula: "1 - 3 - b7 | 9 - #11 - 13",
+                        lh: subVoicing.lh,
+                        rh: subVoicing.rh,
+                        desc: `三音替代 (Tritone Sub 取代 ${rootDisplay}7)：共享 3-7 導音並創造半音下行低音`
+                    });
+                } else if (family === "dom_alt") {
+                    const adv = fitVoicingMidis([rootMidi, rootMidi + 10], [rootMidi + 16, rootMidi + 15, rootMidi + 20].sort((a,b)=>a-b));
+                    registerChordInDatabase(advKey, {
+                        name: `${rootDisplay}7(#9b13)`,
+                        basicEquivalent: `${rootDisplay}7`,
+                        category: "dominant",
+                        formula: "1 - b7 | #9 - 3 - b13",
+                        lh: adv.lh,
+                        rh: adv.rh,
+                        desc: `${rootDisplay}7(#9b13) 變化屬七和弦`
+                    });
+                } else {
+                    const adv = fitVoicingMidis([rootMidi, rootMidi + 4, rootMidi + 10], [rootMidi + 14, rootMidi + 19, rootMidi + 21]);
+                    registerChordInDatabase(advKey, {
+                        name: `${rootDisplay}13`,
+                        basicEquivalent: `${rootDisplay}7`,
+                        category: "dominant",
+                        formula: "1 - 3 - b7 | 9 - 5 - 13",
+                        lh: adv.lh,
+                        rh: adv.rh,
+                        desc: `${rootDisplay}13 爵士屬十三和弦（含 9 與 13 度延伸音）`
+                    });
+                }
+            }
+
+            return { basic: basicKey, advanced: advKey };
+        }
+
+        function applyManualChords(targetStyle) {
+            stopSequence();
+            pushSequenceHistory();
+            const enableTritoneSub = Boolean(document.getElementById("autoTritoneSubCheck")?.checked);
+            const newBasic = [];
+            const newAdv = [];
+            for (let i = 0; i < 8; i++) {
+                const val = document.getElementById(`manual-bar-${i}`).value || "C";
+                const parsed = parseUserChord(val, i, enableTritoneSub);
+                newBasic.push(parsed.basic);
+                newAdv.push(parsed.advanced);
+            }
+            customBasicSequence = newBasic;
+            customAdvancedSequence = newAdv;
+            isCustomMode = true;
+
+            switchProgressionMode(targetStyle === "jazz" ? "advanced" : "basic", false);
+            saveStateToStorage();
+        }
+
+        function collectCustomChordDefs() {
+            const defs = {};
+            const keys = new Set([
+                ...(currentSequence || []),
+                ...(customBasicSequence || []),
+                ...(customAdvancedSequence || [])
+            ]);
+            keys.forEach((k) => {
+                if (!k || typeof k !== "string" || !k.startsWith("USR_")) return;
+                const d = CHORD_DATABASE[k];
+                if (!d) return;
+                defs[k] = {
+                    name: d.name,
+                    category: d.category,
+                    formula: d.formula,
+                    lh: (d.lh || []).slice(),
+                    rh: (d.rh || []).slice(),
+                    lhFingers: d.lhFingers ? d.lhFingers.slice() : undefined,
+                    rhFingers: d.rhFingers ? d.rhFingers.slice() : undefined,
+                    desc: d.desc,
+                    basicEquivalent: d.basicEquivalent,
+                    upgradeTo: d.upgradeTo
+                };
+            });
+            return defs;
+        }
+
+        function saveStateToStorage() {
+            try {
+                const payload = {
+                    currentExerciseKey,
+                    currentMode,
+                    currentSequence,
+                    customBasicSequence,
+                    customAdvancedSequence,
+                    isCustomMode,
+                    currentGroove,
+                    currentBpm,
+                    transposeSemitones,
+                    currentFontSize,
+                    currentTopicId,
+                    customChordDefs: collectCustomChordDefs()
+                };
+                localStorage.setItem("lawSirJazzApp_v2", JSON.stringify(payload));
+            } catch (e) {
+                // Ignore storage quota or iframe restrictions
+            }
+        }
+
+        function syncRestoredUiControls() {
+            const grooveSel = document.getElementById("grooveSelect");
+            if (grooveSel) grooveSel.value = currentGroove;
+            const badge = document.getElementById("activeGrooveBadge");
+            if (badge) badge.textContent = GROOVE_LABELS[currentGroove] || currentGroove;
+
+            const bpmLabel = document.getElementById("bpmValueLabel");
+            if (bpmLabel) bpmLabel.textContent = currentBpm;
+            const bpmSlider = document.getElementById("bpmSlider");
+            if (bpmSlider) bpmSlider.value = String(currentBpm);
+            if (Tone.Transport) Tone.Transport.bpm.value = currentBpm;
+
+            const selectEl = document.getElementById("transposeSelect");
+            if (selectEl) selectEl.value = String(transposeSemitones);
+
+            document.documentElement.style.setProperty("--app-font-size", `${currentFontSize}px`);
+            const labelMap = {
+                13: "極小", 14: "小", 15: "中小", 16: "中", 17: "中大", 18: "大", 20: "特大", 22: "超大", 24: "最大"
+            };
+            const fsDisp = document.getElementById("fontSizeDisplay");
+            if (fsDisp) fsDisp.textContent = labelMap[currentFontSize] || `${currentFontSize}px`;
+
+            const sel = document.getElementById("exerciseSelect");
+            if (sel && PRESET_EXERCISES[currentExerciseKey]) sel.value = currentExerciseKey;
+
+            const basicBtn = document.getElementById("modeBasicBtn");
+            const advBtn = document.getElementById("modeAdvBtn");
+            if (basicBtn && advBtn) {
+                if (currentMode === "basic") {
+                    basicBtn.className = "px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-500 text-slate-950 shadow transition-all";
+                    advBtn.className = "px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-300 transition-all";
+                } else {
+                    advBtn.className = "px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-500 text-slate-950 shadow transition-all";
+                    basicBtn.className = "px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-300 transition-all";
+                }
+            }
+        }
+
+        function loadStateFromStorage() {
+            try {
+                const raw = localStorage.getItem("lawSirJazzApp_v2");
+                if (!raw) return false;
+                const data = JSON.parse(raw);
+
+                // P0: re-register USR_* voicings BEFORE validating sequence keys
+                if (data.customChordDefs && typeof data.customChordDefs === "object") {
+                    Object.entries(data.customChordDefs).forEach(([key, def]) => {
+                        if (key && key.startsWith("USR_") && def && Array.isArray(def.lh) && Array.isArray(def.rh)) {
+                            registerChordInDatabase(key, def);
+                        }
+                    });
+                }
+
+                if (Array.isArray(data.currentSequence) && data.currentSequence.length === 8) {
+                    const allExist = data.currentSequence.every(k => Boolean(CHORD_DATABASE[k]));
+                    if (allExist) {
+                        currentExerciseKey = data.currentExerciseKey || "ex1";
+                        currentMode = data.currentMode || "advanced";
+                        currentSequence = data.currentSequence;
+                        customBasicSequence = data.customBasicSequence || [...PRESET_EXERCISES.ex1.basic];
+                        customAdvancedSequence = data.customAdvancedSequence || [...PRESET_EXERCISES.ex1.advanced];
+                        isCustomMode = Boolean(data.isCustomMode);
+                        if (typeof data.currentGroove === "string") currentGroove = data.currentGroove;
+                        if (typeof data.currentBpm === "number") currentBpm = data.currentBpm;
+                        if (typeof data.transposeSemitones === "number") transposeSemitones = data.transposeSemitones;
+                        if (typeof data.currentFontSize === "number") currentFontSize = data.currentFontSize;
+                        if (typeof data.currentTopicId === "string") currentTopicId = data.currentTopicId;
+                        syncRestoredUiControls();
+                        return true;
+                    }
+                }
+            } catch (e) {
+                return false;
+            }
+            return false;
+        }
+
+        /**************************************************************
+         * 9. LEFT PANEL (TOPICS) & CENTER PANEL (LESSONS) RENDERER
+         **************************************************************/
+        function renderTopicOutline() {
+            const container = document.getElementById("topicListContainer");
+            container.innerHTML = TOPICS.map(t => {
+                const active = t.id === currentTopicId;
+                return `
+                    <button onclick="selectTopic('${t.id}')"
+                            class="w-full text-left p-3 rounded-xl border transition-all flex items-start space-x-3 ${
+                                active
+                                    ? 'bg-amber-500/15 border-amber-500/50 text-amber-600 dark:text-amber-400 shadow-sm'
+                                    : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 hover:border-amber-500/30'
+                            }">
+                        <span class="px-2 py-0.5 rounded-md text-[10px] font-bold shrink-0 mt-0.5 ${
+                            active ? 'bg-amber-500 text-slate-950' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                        }">${t.badge}</span>
+                        <div class="flex-1 min-w-0">
+                            <div class="font-bold text-sm truncate">${t.title}</div>
+                            <div class="text-xs text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5">${t.subtitle}</div>
+                        </div>
+                    </button>
+                `;
+            }).join("");
+        }
+
+        function selectTopic(topicId, skipExerciseReload = false) {
+            currentTopicId = topicId;
+            renderTopicOutline();
+            const topic = TOPICS.find(t => t.id === topicId) || TOPICS[0];
+
+            // Load corresponding preset exercise into the 8-bar staff
+            if (topic.exerciseId && !skipExerciseReload) {
+                loadPresetExercise(topic.exerciseId);
+            }
+
+            // Close mobile drawer automatically on small screens
+            if (window.innerWidth < 1280 && !skipExerciseReload) {
+                const leftPanel = document.getElementById("leftPanel");
+                if (!leftPanel.classList.contains("hidden")) {
+                    leftPanel.classList.add("hidden");
+                }
+            }
+
+            const contentArea = document.getElementById("lessonContentArea");
+            contentArea.innerHTML = `
+                <!-- Topic Header Card -->
+                <div class="bg-white dark:bg-slate-900 rounded-2xl p-5 sm:p-6 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <span class="px-3 py-1 rounded-full text-xs font-bold bg-amber-500/20 text-amber-600 dark:text-amber-400">
+                            ${topic.badge} ・ 羅SIR 核心伴奏理論
+                        </span>
+                        <button onclick="loadPresetExercise('${topic.exerciseId}'); togglePlaySequence();"
+                                class="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-sm transition-colors">
+                            <i class="fa-solid fa-volume-high"></i>
+                            <span>在上方五線譜示範本單元練習</span>
+                        </button>
+                    </div>
+                    <div>
+                        <h2 class="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">${topic.title}</h2>
+                        <p class="text-slate-500 dark:text-slate-400 text-sm mt-1">${topic.subtitle}</p>
+                    </div>
+
+                    <!-- Definition Box -->
+                    <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border-l-4 border-amber-500 space-y-2">
+                        <div class="font-bold text-amber-600 dark:text-amber-400 flex items-center gap-2 text-sm">
+                            <i class="fa-solid fa-lightbulb"></i>
+                            <span>核心定義與原理解析</span>
+                        </div>
+                        <p class="text-slate-700 dark:text-slate-200">${topic.definition}</p>
+                    </div>
+
+                    <!-- Key Actionable Rules -->
+                    <div class="space-y-2.5 pt-2">
+                        <h3 class="font-bold text-sm uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                            <i class="fa-solid fa-check-double text-amber-500"></i>
+                            <span>實戰伴奏必記要點</span>
+                        </h3>
+                        <ul class="space-y-2">
+                            ${topic.keyRules.map(rule => `
+                                <li class="flex items-start space-x-2.5 bg-slate-50 dark:bg-slate-800/40 p-3 rounded-xl border border-slate-200/60 dark:border-slate-800">
+                                    <i class="fa-solid fa-circle-check text-amber-500 mt-1 shrink-0"></i>
+                                    <span>${rule}</span>
+                                </li>
+                            `).join("")}
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Interactive "Basic vs Advanced" Comparison Examples -->
+                <div class="bg-white dark:bg-slate-900 rounded-2xl p-5 sm:p-6 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+                    <div class="flex items-center justify-between">
+                        <h3 class="font-bold text-lg flex items-center gap-2">
+                            <i class="fa-solid fa-sliders text-amber-500"></i>
+                            <span>解釋性聲音範例：普通 Chord vs 高級 Jazz/Blues 聽感對比</span>
+                        </h3>
+                        <span class="text-xs text-slate-400">點擊按鈕即時套用當前節奏與調性發聲</span>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+                        ${topic.comparisons.map(comp => {
+                            const fromObj = getTransposedChord(comp.from);
+                            const toObj = getTransposedChord(comp.to);
+                            return `
+                                <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex flex-col justify-between space-y-3">
+                                    <div>
+                                        <div class="flex items-center justify-between mb-2">
+                                            <span class="text-xs font-semibold text-slate-400">${comp.label}</span>
+                                            <button onclick="applyChordToSelectedBar('${comp.to}')" class="px-2 py-0.5 rounded bg-amber-500/15 hover:bg-amber-500 text-amber-600 dark:text-amber-300 hover:text-slate-950 text-[10px] font-bold transition-colors" title="套用此高級和弦至目前選中小節">
+                                                套用至 M${selectedMeasureIndex + 1}
+                                            </button>
+                                        </div>
+                                        <div class="flex items-center justify-between gap-2 mb-3">
+                                            <button onclick="previewChordOnly('${escapeHtml(comp.from)}')"
+                                                    class="flex-1 py-2 px-2 rounded-lg bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-center transition-colors" title="點擊純試聽普通和弦">
+                                                <div class="text-[10px] text-slate-500 dark:text-slate-400">🎧 試聽普通</div>
+                                                <div class="font-bold text-sm">${escapeHtml(fromObj.displayName)}</div>
+                                            </button>
+                                            <i class="fa-solid fa-arrow-right text-amber-500 text-xs"></i>
+                                            <button onclick="previewChordOnly('${escapeHtml(comp.to)}')"
+                                                    class="flex-1 py-2 px-2 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-600 dark:text-amber-300 text-center transition-colors" title="點擊純試聽高級和弦">
+                                                <div class="text-[10px] opacity-80">🎧 試聽高級</div>
+                                                <div class="font-bold text-sm">${escapeHtml(toObj.displayName)}</div>
+                                            </button>
+                                        </div>
+                                        <p class="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">${escapeHtml(comp.note)}</p>
+                                    </div>
+                                    <div class="pt-2 border-t border-slate-200 dark:border-slate-700/70 text-[11px] font-mono text-slate-500 dark:text-slate-400">
+                                        左手：${escapeHtml(toObj.lh.join("-"))} ｜ 右手：${escapeHtml(toObj.rh.join("-"))}
+                                    </div>
+                                </div>
+                            `;
+                        }).join("")}
+                    </div>
+                </div>
+            `;
+        }
+
+        // Non-destructive Chord Preview (plays sound & shows fingering on keyboard without overwriting sequence)
+        function previewChordOnly(chordKey) {
+            if (!CHORD_DATABASE[chordKey]) return;
+            clearScheduledGrooveEvents();
+            previewedChordKey = chordKey;
+            updateSelectedBarInfo(selectedMeasureIndex, chordKey);
+            const chordObj = getTransposedChord(chordKey);
+            const barDurationMs = (60 / currentBpm) * 4 * 1000;
+            playMeasureWithGroove(chordObj, barDurationMs);
+        }
+
+        // Explicitly apply a chord to the currently selected measure (with Undo history)
+        function applyChordToSelectedBar(chordKey, event = null) {
+            if (event) event.stopPropagation();
+            if (!CHORD_DATABASE[chordKey]) return;
+            clearScheduledGrooveEvents();
+            pushSequenceHistory();
+            previewedChordKey = null;
+            currentSequence[selectedMeasureIndex] = chordKey;
+            saveStateToStorage();
+            renderEightBarStaff();
+            const chordObj = getTransposedChord(chordKey);
+            const barDurationMs = (60 / currentBpm) * 4 * 1000;
+            playMeasureWithGroove(chordObj, barDurationMs);
+        }
+
+        function commitPreviewedChordToBar() {
+            if (previewedChordKey) {
+                applyChordToSelectedBar(previewedChordKey);
+            }
+        }
+
+        /**************************************************************
+         * 10. RIGHT PANEL: CHORD TABLE DICTIONARY (PREVIEW vs APPLY)
+         **************************************************************/
+        const ADVANCED_CHORD_KEYS = [
+            "Dm9_RL", "G13_RL", "Cmaj9_RL", "Fmaj9_RL",
+            "Cmaj9", "Cmaj9#11", "Fmaj9",
+            "Am9", "Dm9", "Em9", "Em11", "Bm11b5",
+            "G13", "G7alt", "Db9#11", "A7b13", "E7#9b13",
+            "C13", "F9", "C7#9", "Gm9_C13"
+        ];
+
+        function filterChordTable(category) {
+            document.querySelectorAll(".chord-filter-btn").forEach(btn => {
+                btn.className = "chord-filter-btn px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-800";
+            });
+            const activeBtn = document.getElementById(`filter-${category}`);
+            if (activeBtn) {
+                activeBtn.className = "chord-filter-btn px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500 text-slate-950";
+            }
+
+            const container = document.getElementById("chordTableContainer");
+            const filteredKeys = ADVANCED_CHORD_KEYS.filter(k => {
+                if (category === "all") return true;
+                return CHORD_DATABASE[k].category === category;
+            });
+
+            container.innerHTML = filteredKeys.map(key => {
+                const c = getTransposedChord(key);
+                const safeKey = escapeHtml(key);
+                return `
+                    <div onclick="previewChordOnly('${safeKey}')"
+                         class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 hover:bg-amber-500/10 border border-slate-200 dark:border-slate-800 hover:border-amber-500/40 cursor-pointer transition-all space-y-1.5 group">
+                        <div class="flex items-center justify-between gap-1">
+                            <div class="flex items-center space-x-1.5 min-w-0">
+                                <span class="text-[11px] px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-mono shrink-0">
+                                    原:${escapeHtml(c.displayBasic)}
+                                </span>
+                                <i class="fa-solid fa-arrow-right text-[10px] text-slate-400 shrink-0"></i>
+                                <span class="font-bold text-sm text-amber-600 dark:text-amber-400 group-hover:underline truncate">
+                                    ${escapeHtml(c.displayName)}
+                                </span>
+                            </div>
+                            <div class="flex items-center gap-1 shrink-0">
+                                <span class="px-2 py-1 rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400 text-[10px] font-bold flex items-center gap-1" title="點擊卡片純試聽">
+                                    <i class="fa-solid fa-headphones"></i>試聽
+                                </span>
+                                <button onclick="applyChordToSelectedBar('${safeKey}', event)"
+                                        class="px-2 py-1 rounded-lg bg-slate-200 dark:bg-slate-700 hover:bg-amber-500 hover:text-slate-950 text-[10px] font-bold transition-colors"
+                                        title="套用此和弦至目前選中的小節">
+                                    套用
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="text-[11px] font-mono text-slate-500 dark:text-slate-400">
+                            結構：${escapeHtml(c.formula)}
+                        </div>
+
+                        <div class="flex items-center flex-wrap gap-1 pt-0.5">
+                            <span class="text-[10px] text-blue-500 font-semibold mr-1">左手:${escapeHtml(c.lh.join("-"))}</span>
+                            <span class="text-[10px] text-amber-500 font-semibold">右手:${escapeHtml(c.rh.join("-"))}</span>
+                        </div>
+
+                        <p class="text-xs text-slate-600 dark:text-slate-300 pt-0.5 leading-snug">
+                            ${escapeHtml(c.desc)}
+                        </p>
+                    </div>
+                `;
+            }).join("");
+        }
+
+        /**************************************************************
+         * 11. UI CONTROLS: COLLAPSIBLE PANELS, FONT SIZE, THEME
+         **************************************************************/
+        function togglePanel(side) {
+            const panel = document.getElementById(side === "left" ? "leftPanel" : "rightPanel");
+            panel.classList.toggle("hidden");
+        }
+
+        function changeFontSize(delta) {
+            currentFontSize = Math.min(24, Math.max(13, currentFontSize + delta));
+            document.documentElement.style.setProperty("--app-font-size", `${currentFontSize}px`);
+            const labelMap = {
+                13: "極小", 14: "小", 15: "中小", 16: "中", 17: "中大", 18: "大", 20: "特大", 22: "超大", 24: "最大"
+            };
+            document.getElementById("fontSizeDisplay").textContent = labelMap[currentFontSize] || `${currentFontSize}px`;
+            saveStateToStorage();
+        }
+
+        function toggleTheme() {
+            const htmlEl = document.documentElement;
+            const icon = document.getElementById("themeIcon");
+            if (htmlEl.classList.contains("dark")) {
+                htmlEl.classList.remove("dark");
+                icon.className = "fa-solid fa-moon text-slate-700";
+            } else {
+                htmlEl.classList.add("dark");
+                icon.className = "fa-solid fa-sun text-amber-400";
+            }
+        }
+
+        /**************************************************************
+         * 12. INITIALIZE APP ON LOAD
+         **************************************************************/
+        window.onload = function () {
+            // Keep center staff/piano clear at laptop widths; sidebars overlay until 2xl/xl
+            if (window.innerWidth < 1280) {
+                document.getElementById("leftPanel").classList.add("hidden");
+            }
+            if (window.innerWidth < 1536) {
+                document.getElementById("rightPanel").classList.add("hidden");
+            }
+
+            renderPianoKeyboard();
+            initManualInputs();
+            const restored = loadStateFromStorage();
+            renderTopicOutline();
+            filterChordTable("all"); // after restore so transpose display names match
+            // P0: render only — no Tone.start / autoplay until first user gesture
+            const topicToShow = restored ? (currentTopicId || "topic-1") : "topic-1";
+            selectTopic(topicToShow, restored);
+            selectMeasureOnly(selectedMeasureIndex);
+        };
+    </script>
+</body>
+</html>
